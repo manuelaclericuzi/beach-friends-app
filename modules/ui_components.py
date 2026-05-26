@@ -162,7 +162,7 @@ button[data-testid="baseButton-secondary"]:hover {
 /* ── Tabs ── */
 .stTabs [data-baseweb="tab-list"] {
     background: #f2e8df !important; border-radius: 12px !important;
-    padding: 3px !important; gap: 2px !important;
+    padding: 4px !important; gap: 3px !important;
 }
 .stTabs [data-baseweb="tab"] {
     border-radius: 10px !important; font-weight: 600 !important;
@@ -170,8 +170,22 @@ button[data-testid="baseButton-secondary"]:hover {
     min-height: 2.4rem !important;
 }
 .stTabs [data-baseweb="tab"][aria-selected="true"] {
-    background: #ffffff !important; color: #f97316 !important;
-    font-weight: 800 !important; box-shadow: 0 1px 6px rgba(0,0,0,.1) !important;
+    background: #f97316 !important; color: #ffffff !important;
+    font-weight: 700 !important; box-shadow: 0 2px 8px rgba(249,115,22,.3) !important;
+}
+
+/* ── Dark button (used in history cards) ── */
+.btn-dark-wrap > div > button,
+.btn-dark-wrap > div > div > button {
+    background: #1a1613 !important; color: #ffffff !important;
+    border: none !important; border-radius: 10px !important;
+    font-weight: 700 !important;
+}
+.btn-dark-wrap > div > button:hover,
+.btn-dark-wrap > div > div > button:hover {
+    background: #2c2420 !important;
+    box-shadow: 0 4px 14px rgba(0,0,0,.25) !important;
+    transform: translateY(-1px) !important;
 }
 
 /* ── Progress ── */

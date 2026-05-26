@@ -516,9 +516,21 @@ def _tab_history(can_edit: bool = True, player_filter: str = ""):
     data    = st.session_state["data"]
     history = data.get("tournament_history", [])
 
+    # ── Detail view mode ─────────────────────────────
+    viewing = st.session_state.get("hist_viewing")
+    if viewing:
+        h_found = next((x for x in history if x.get("archived_at") == viewing), None)
+        if h_found:
+            _render_history_detail(h_found, can_edit)
+        else:
+            st.session_state.pop("hist_viewing", None)
+            st.rerun()
+        return
+
+    # ── Empty state ───────────────────────────────────
     if not history:
         st.markdown(
-            '<div style="text-align:center;padding:3rem 1rem;color:#c49070;font-size:.9rem">'
+            '<div style="text-align:center;padding:3rem 1rem;color:#c49070">'
             '⏳  Nenhum torneio arquivado ainda.<br>'
             '<span style="font-size:.8rem">Encerre um torneio para vê-lo aqui.</span>'
             '</div>',
@@ -526,170 +538,260 @@ def _tab_history(can_edit: bool = True, player_filter: str = ""):
         )
         return
 
-    # ── Filters ────────────────────────────────────
-    with st.container(border=True):
-        section_label("🔍 Filtrar Torneios")
-        fc1, fc2, fc3, fc4 = st.columns([3, 3, 3, 1])
+    # ── Filters ───────────────────────────────────────
+    st.markdown(
+        '<div style="display:flex;align-items:center;gap:.55rem;margin-bottom:.8rem">'
+        '<span style="font-size:1rem">🔍</span>'
+        '<span style="font-weight:900;font-size:.9rem;letter-spacing:.06em;'
+        'color:#1a1613;text-transform:uppercase">Filtrar Histórico de Torneios</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-        with fc1:
-            field_label("Nome")
-            search_name = st.text_input("hs_name_in", placeholder="Nome do torneio...",
-                                        label_visibility="collapsed", key="hs_name")
-        with fc2:
-            field_label("Local / Arena")
-            search_loc = st.text_input("hs_loc_in", placeholder="Local ou arena...",
-                                       label_visibility="collapsed", key="hs_loc")
-        with fc3:
-            field_label("Participante")
-            all_participants = sorted({p for h in history for p in h.get("players", [])})
-            pref = [player_filter] if player_filter and player_filter in all_participants else []
-            opts = ["— todas —"] + all_participants
-            default_idx = opts.index(player_filter) if player_filter in opts else 0
-            search_player = st.selectbox("hs_player_sel", opts,
-                                         index=default_idx,
-                                         label_visibility="collapsed", key="hs_player")
-        with fc4:
-            st.markdown("<div style='height:1.7rem'></div>", unsafe_allow_html=True)
-            if st.button("Limpar", use_container_width=True, key="hs_clear"):
-                for k in ("hs_name", "hs_loc", "hs_player"):
-                    st.session_state.pop(k, None)
-                st.rerun()
+    fc1, fc2, fc3 = st.columns(3, gap="medium")
+    with fc1:
+        field_label("Data do Torneio")
+        date_filter = st.date_input(
+            "hs_date_in", value=None,
+            label_visibility="collapsed", key="hs_date",
+            format="DD/MM/YYYY",
+        )
+    with fc2:
+        field_label("Local / Arena")
+        search_loc = st.text_input(
+            "hs_loc_in", placeholder="Pesquisar por clube ou praia...",
+            label_visibility="collapsed", key="hs_loc",
+        )
+    with fc3:
+        field_label("Selecione uma Atleta")
+        all_participants = sorted({p for h in history for p in h.get("players", [])})
+        opts = ["Todas as jogadoras"] + all_participants
+        default_idx = opts.index(player_filter) if player_filter in opts else 0
+        search_player = st.selectbox(
+            "hs_player_sel", opts, index=default_idx,
+            label_visibility="collapsed", key="hs_player",
+        )
 
-    # ── Apply filters ────────────────────────────────
+    _has_filter = (
+        bool(date_filter)
+        or bool(st.session_state.get("hs_loc"))
+        or st.session_state.get("hs_player", "Todas as jogadoras") != "Todas as jogadoras"
+    )
+    if _has_filter:
+        if st.button("× Limpar filtros", key="hs_clear"):
+            for k in ("hs_date", "hs_loc", "hs_player"):
+                st.session_state.pop(k, None)
+            st.rerun()
+
+    st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+
+    # ── Apply filters ─────────────────────────────────
     filtered = list(reversed(history))
-    if search_name:
-        filtered = [h for h in filtered if search_name.lower() in h.get("name", "").lower()]
+    if date_filter:
+        filtered = [h for h in filtered if h.get("date", "") == str(date_filter)]
     if search_loc:
-        filtered = [h for h in filtered if search_loc.lower() in h.get("location", "").lower()]
-    if search_player != "— todas —":
+        filtered = [h for h in filtered
+                    if search_loc.lower() in h.get("location", "").lower()]
+    if search_player != "Todas as jogadoras":
         filtered = [h for h in filtered if search_player in h.get("players", [])]
 
-    count_txt = f"{len(filtered)} torneio{'s' if len(filtered) != 1 else ''} encontrado{'s' if len(filtered) != 1 else ''}"
-    st.markdown(f'<div style="font-size:.75rem;color:#9b8679;margin:.4rem 0 .8rem">{count_txt}</div>',
-                unsafe_allow_html=True)
+    count_txt = (
+        f"{len(filtered)} torneio{'s' if len(filtered) != 1 else ''} "
+        f"encontrado{'s' if len(filtered) != 1 else ''}"
+    )
+    st.markdown(
+        f'<div style="font-size:.73rem;color:#9b8679;margin-bottom:.6rem">{count_txt}</div>',
+        unsafe_allow_html=True,
+    )
 
     if not filtered:
         st.info("Nenhum torneio encontrado com esses filtros.")
         return
 
-    # ── Tournament cards ─────────────────────────────
-    for h in filtered:
-        fmt_icon  = _FMT_ICON.get(h["format"], "🏆")
-        name      = h.get("name", h.get("format_name", "Torneio"))
-        location  = h.get("location", "")
-        date_str  = h.get("date", h.get("archived_at", ""))
-        ranking   = h.get("ranking_snapshot", [])
-        n_players = h.get("n_players", "?")
-        players   = h.get("players", [])
+    # ── Card grid (2 columns) ─────────────────────────
+    for row_start in range(0, len(filtered), 2):
+        cols = st.columns(2, gap="medium")
+        for col_i, h in enumerate(filtered[row_start: row_start + 2]):
+            with cols[col_i]:
+                _render_history_card(h)
+        st.markdown("<div style='height:.2rem'></div>", unsafe_allow_html=True)
 
-        where_txt  = f"  ·  📍 {location}" if location else ""
-        expnd_lbl  = (
-            f"{fmt_icon} **{name}**  ·  {date_str}{where_txt}  ·  {n_players} participantes"
+
+def _render_history_card(h: dict):
+    """Compact tournament card shown in the 2-column history grid."""
+    fmt_label = h.get("format_name", h["format"]).upper()
+    name      = h.get("name", fmt_label)
+    location  = h.get("location", "")
+    date_str  = h.get("date", h.get("archived_at", ""))
+    ranking   = h.get("ranking_snapshot", [])
+
+    medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+    podium_rows = ""
+    for i, r in enumerate(ranking[:3]):
+        medal = medals.get(i, f"{i+1}º")
+        pts   = r.get("points", 0)
+        podium_rows += (
+            f'<div style="display:flex;align-items:center;justify-content:space-between;'
+            f'padding:.25rem 0;font-size:.83rem;border-bottom:1px solid #faf0e6">'
+            f'<span style="color:#374151">{medal} {r["name"]}</span>'
+            f'<span style="color:#f97316;font-weight:800">{pts} Pts</span></div>'
         )
+    if not podium_rows:
+        podium_rows = '<div style="font-size:.78rem;color:#9b8679;padding:.3rem 0">Sem dados de pódio.</div>'
 
-        with st.expander(expnd_lbl, expanded=False):
-            # Top section: podium + details side by side
-            pc1, pc2 = st.columns([1, 1], gap="large")
+    loc_html = (
+        f'<div style="font-size:.78rem;color:#6b7280;margin:.2rem 0 .6rem;'
+        f'display:flex;align-items:center;gap:.3rem">📍 {location}</div>'
+        if location else
+        '<div style="margin-bottom:.6rem"></div>'
+    )
 
-            with pc1:
-                section_label("🏆 Pódio")
-                medals = {0: "🥇", 1: "🥈", 2: "🥉"}
-                if ranking:
-                    for i, r in enumerate(ranking[:3]):
-                        medal   = medals.get(i, f"{i+1}º")
-                        pts     = r.get("points", 0)
-                        gb      = r.get("game_balance", 0)
-                        gb_str  = f"+{gb}" if gb > 0 else str(gb)
+    with st.container(border=True):
+        st.markdown(
+            f'<div style="padding:.1rem 0">'
+            f'<div style="display:flex;justify-content:space-between;align-items:center;'
+            f'margin-bottom:.35rem">'
+            f'<span style="font-size:.63rem;font-weight:700;color:#9b8679;'
+            f'text-transform:uppercase;letter-spacing:.08em">{fmt_label}</span>'
+            f'<span style="font-size:.72rem;color:#9b8679">{date_str}</span>'
+            f'</div>'
+            f'<div style="font-size:1rem;font-weight:900;color:#1a1613;margin-bottom:.2rem;'
+            f'letter-spacing:-.02em">{name}</div>'
+            f'{loc_html}'
+            f'<div style="font-size:.63rem;font-weight:800;letter-spacing:.1em;'
+            f'color:#9b8679;text-transform:uppercase;margin-bottom:.3rem">'
+            f'Pódio do Dia:</div>'
+            f'<div style="margin-bottom:.5rem">{podium_rows}</div>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
+        key_safe = (h.get("archived_at", "")
+                    .replace("/", "").replace(":", "").replace(" ", "_"))
+        st.markdown('<div class="btn-dark-wrap">', unsafe_allow_html=True)
+        if st.button("🔍 Ver Detalhes Completos", key=f"view_{key_safe}",
+                     use_container_width=True):
+            st.session_state["hist_viewing"] = h.get("archived_at", "")
+            st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
+
+
+def _render_history_detail(h: dict, can_edit: bool):
+    """Full-page detail view for a single archived tournament."""
+    name     = h.get("name", h.get("format_name", "Torneio"))
+    location = h.get("location", "")
+    date_str = h.get("date", h.get("archived_at", ""))
+    ranking  = h.get("ranking_snapshot", [])
+    players  = h.get("players", [])
+    fmt_name = h.get("format_name", h["format"])
+
+    if st.button("← Voltar ao Histórico", key="hist_back"):
+        st.session_state.pop("hist_viewing", None)
+        st.rerun()
+
+    meta_parts = []
+    if location:
+        meta_parts.append(f"📍 {location}")
+    if date_str:
+        meta_parts.append(f"📅 {date_str}")
+    meta_parts.append(f"{len(players)} participantes")
+
+    st.markdown(
+        f'<div style="background:linear-gradient(135deg,#1a1613,#2c2420);'
+        f'border-radius:16px;padding:1rem 1.4rem;margin:.5rem 0 1rem">'
+        f'<div style="color:rgba(255,255,255,.5);font-size:.68rem;text-transform:uppercase;'
+        f'letter-spacing:.1em">{fmt_name}</div>'
+        f'<div style="color:#fff;font-weight:900;font-size:1.15rem;margin:.2rem 0 .15rem">'
+        f'{name}</div>'
+        f'<div style="color:rgba(255,255,255,.5);font-size:.75rem">'
+        f'{"  ·  ".join(meta_parts)}</div>'
+        f'</div>',
+        unsafe_allow_html=True,
+    )
+
+    dtabs = st.tabs(["🏆 Pódio & Ranking", "📋 Rodadas Completas"])
+
+    with dtabs[0]:
+        if not ranking:
+            st.info("Sem dados de ranking para este torneio.")
+        else:
+            medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+            for i, r in enumerate(ranking):
+                pos    = medals.get(i, f"{i+1}º")
+                pts    = r.get("points", 0)
+                gb     = r.get("game_balance", 0)
+                gb_str = f"+{gb}" if gb > 0 else str(gb)
+                gb_col = "#16a34a" if gb >= 0 else "#dc2626"
+                wins   = r.get("wins", 0)
+                with st.container(border=True):
+                    c1, c2, c3, c4 = st.columns([3.5, 1, 1, 1])
+                    with c1:
                         st.markdown(
-                            f'<div style="display:flex;align-items:center;'
-                            f'justify-content:space-between;padding:.4rem 0;'
-                            f'border-bottom:1px solid #faf0e6;font-size:.88rem">'
-                            f'<span>{medal} <b>{r["name"]}</b></span>'
-                            f'<span style="color:#f97316;font-weight:900">{pts} pts &nbsp;'
-                            f'<span style="font-size:.72rem;color:#9b8679;font-weight:500">'
-                            f'saldo {gb_str}</span></span></div>',
+                            f'<div style="font-weight:800;font-size:.95rem">'
+                            f'{pos} {r["name"]}</div>',
                             unsafe_allow_html=True,
                         )
-                else:
-                    st.caption("Sem dados de ranking.")
+                    with c2:
+                        st.markdown(
+                            f'<div style="text-align:center">'
+                            f'<div style="font-size:1.2rem;font-weight:900;color:#f97316">'
+                            f'{pts}</div>'
+                            f'<div style="font-size:.62rem;color:#9b8679">pts</div></div>',
+                            unsafe_allow_html=True,
+                        )
+                    with c3:
+                        st.markdown(
+                            f'<div style="text-align:center">'
+                            f'<div style="font-weight:700">{wins}</div>'
+                            f'<div style="font-size:.62rem;color:#9b8679">vitórias</div></div>',
+                            unsafe_allow_html=True,
+                        )
+                    with c4:
+                        st.markdown(
+                            f'<div style="text-align:center">'
+                            f'<div style="font-weight:700;color:{gb_col}">{gb_str}</div>'
+                            f'<div style="font-size:.62rem;color:#9b8679">saldo</div></div>',
+                            unsafe_allow_html=True,
+                        )
 
-            with pc2:
-                section_label("ℹ️ Detalhes")
-                st.markdown(
-                    f'<div style="font-size:.85rem;line-height:2">'
-                    f'<b>Formato:</b> {h.get("format_name", h["format"])}<br>'
-                    + (f'<b>Local:</b> {location}<br>' if location else "")
-                    + (f'<b>Data:</b> {date_str}<br>' if date_str else "")
-                    + f'<b>Participantes:</b> {n_players}'
-                    + f'</div>',
-                    unsafe_allow_html=True,
-                )
-                if players:
-                    chips = "".join(
-                        f'<span style="display:inline-flex;align-items:center;gap:.3rem;'
-                        f'background:#fff7ed;border:1px solid #fcd9aa;border-radius:20px;'
-                        f'padding:.2rem .65rem;font-size:.72rem;font-weight:600;color:#c2410c;'
-                        f'margin:.1rem">{p}</span>'
-                        for p in players
+    with dtabs[1]:
+        fmt_obj = FORMAT_BY_ID.get(h["format"])
+        if fmt_obj and h.get("data"):
+            try:
+                t_hist = fmt_obj["cls"].from_dict(h["data"])
+                t_hist.render(can_edit=False)
+            except Exception as e:
+                st.error(f"Erro ao carregar rodadas: {e}")
+        else:
+            st.info("Dados de rodadas não disponíveis.")
+
+    if can_edit:
+        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+        del_key = f"del_hist_{h.get('archived_at', '')}"
+        if st.session_state.get(del_key):
+            cy, cn = st.columns(2)
+            with cy:
+                if st.button("✅ Confirmar exclusão", key=f"yes_{del_key}",
+                             type="primary", use_container_width=True):
+                    hist_list = st.session_state["data"]["tournament_history"]
+                    idx_rm = next(
+                        (i for i, x in enumerate(hist_list)
+                         if x.get("archived_at") == h.get("archived_at")), None,
                     )
-                    st.markdown(
-                        f'<div style="margin-top:.5rem;display:flex;flex-wrap:wrap;gap:.2rem">'
-                        f'{chips}</div>',
-                        unsafe_allow_html=True,
-                    )
-
-            # Full ranking table
-            if len(ranking) > 3:
-                st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-                with st.expander("📊 Classificação Completa", expanded=False):
-                    render_ranking_section(
-                        [(i + 1, r["name"], {
-                            "points":       r.get("points", 0),
-                            "matches":      r.get("matches", 0),
-                            "wins":         r.get("wins", 0),
-                            "game_balance": r.get("game_balance", 0),
-                            "games_pro":    r.get("games_pro", 0),
-                        }) for i, r in enumerate(ranking)],
-                        "individual",
-                    )
-
-            # Full tournament view (rounds, history)
-            fmt_obj = FORMAT_BY_ID.get(h["format"])
-            if fmt_obj and h.get("data"):
-                with st.expander("📋 Rodadas e Resultados Completos", expanded=False):
-                    try:
-                        t_hist = fmt_obj["cls"].from_dict(h["data"])
-                        t_hist.render(can_edit=False)
-                    except Exception as e:
-                        st.error(f"Erro ao carregar: {e}")
-
-            # Admin: delete from history
-            if can_edit:
-                st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-                del_key = f"del_hist_{h.get('archived_at','')}"
-                if st.session_state.get(del_key):
-                    cy, cn = st.columns(2)
-                    with cy:
-                        if st.button("✅ Confirmar exclusão", key=f"yes_{del_key}",
-                                     type="primary", use_container_width=True):
-                            hist_list = st.session_state["data"]["tournament_history"]
-                            idx_to_remove = next(
-                                (i for i, x in enumerate(hist_list)
-                                 if x.get("archived_at") == h.get("archived_at")), None)
-                            if idx_to_remove is not None:
-                                hist_list.pop(idx_to_remove)
-                            st.session_state.pop(del_key, None)
-                            _persist()
-                            st.rerun()
-                    with cn:
-                        if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
-                            st.session_state.pop(del_key, None)
-                            st.rerun()
-                else:
-                    if st.button("🗑️ Remover do Histórico", key=f"btn_{del_key}",
-                                 use_container_width=True):
-                        st.session_state[del_key] = True
-                        st.rerun()
+                    if idx_rm is not None:
+                        hist_list.pop(idx_rm)
+                    st.session_state.pop(del_key, None)
+                    st.session_state.pop("hist_viewing", None)
+                    _persist()
+                    st.rerun()
+            with cn:
+                if st.button("❌ Cancelar", key=f"no_{del_key}", use_container_width=True):
+                    st.session_state.pop(del_key, None)
+                    st.rerun()
+        else:
+            if st.button("🗑️ Remover do Histórico", key=f"btn_{del_key}",
+                         use_container_width=True):
+                st.session_state[del_key] = True
+                st.rerun()
 
 
 # ─────────────────────────────────────────────
@@ -811,31 +913,48 @@ def _render_archive_form(t):
 # ─────────────────────────────────────────────
 
 def _pick_format_ui():
-    st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
-    col_l, col_r = st.columns([5, 7], gap="large")
+    st.markdown(
+        '<div style="text-align:center;padding:1.8rem 1rem 1.5rem">'
+        '<div style="font-size:3rem;margin-bottom:.6rem">🎾</div>'
+        '<h2 style="font-size:1.35rem;font-weight:900;color:#1a1613;margin:0 0 .4rem;'
+        'letter-spacing:-.02em">Selecione o Formato do Torneio</h2>'
+        '<p style="font-size:.83rem;color:#9b8679;max-width:420px;margin:0 auto;'
+        'line-height:1.5">Escolha um dos formatos de Beach Tennis abaixo para começar '
+        'a marcar e gerar o ranking de forma automática.</p>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
 
-    with col_l:
-        with st.container(border=True):
-            section_label("🏆  Formato do Torneio")
-            fmt_labels = [f"{FORMATS[k]['icon']}  {FORMATS[k]['label']}" for k in FORMAT_KEYS]
-            fmt_sel    = st.radio("fmt", fmt_labels,
-                                  label_visibility="collapsed", key="tourn_fmt_radio")
-            fmt_idx = fmt_labels.index(fmt_sel)
-            fmt_id  = FORMAT_KEYS[fmt_idx]
+    _FMT_CARDS = [
+        ("rainha_da_praia", "👑", "Rainha (Super 8)",
+         "Troca de parceiras automática a cada jogo. Pontuação 100% individual."),
+        ("duplas_fixas",    "👥", "Duplas Fixas",
+         "Duplas jogam entre si no modo pontos corridos clássico."),
+        ("mata_mata",       "🏆", "Chave de Mata-Mata",
+         "Cruzamento eliminatório com chaves de quartas, semis e final."),
+    ]
 
-    with col_r:
-        fmt = FORMATS[fmt_id]
-        render_format_info(fmt["icon"], fmt["label"], fmt["desc"])
-        st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-        render_rules_card(_FORMAT_RULES.get(fmt_id, []))
-        st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
-
-        if st.button("Criar Torneio  →", type="primary", use_container_width=True):
-            st.session_state["pending_fmt"] = fmt_id
-            st.session_state["tourn_participants"] = sorted(
-                st.session_state["data"].get("players", {}).keys()
-            )
-            st.rerun()
+    c1, c2, c3 = st.columns(3, gap="medium")
+    for col, (fmt_id, icon, label, desc) in zip([c1, c2, c3], _FMT_CARDS):
+        with col:
+            with st.container(border=True):
+                st.markdown(
+                    f'<div style="text-align:center;padding:.9rem .5rem .3rem">'
+                    f'<div style="font-size:2rem;margin-bottom:.45rem">{icon}</div>'
+                    f'<div style="font-weight:800;font-size:.95rem;color:#1a1613;'
+                    f'margin-bottom:.4rem">{label}</div>'
+                    f'<div style="font-size:.78rem;color:#9b8679;min-height:2.8em;'
+                    f'line-height:1.45;padding:0 .3rem">{desc}</div>'
+                    f'</div>',
+                    unsafe_allow_html=True,
+                )
+                if st.button("Selecionar Torneio", key=f"fmt_{fmt_id}",
+                             use_container_width=True):
+                    st.session_state["pending_fmt"] = fmt_id
+                    st.session_state["tourn_participants"] = sorted(
+                        st.session_state["data"].get("players", {}).keys()
+                    )
+                    st.rerun()
 
 
 # ─────────────────────────────────────────────
@@ -1005,105 +1124,190 @@ def _do_create(players: list, fmt_id: str):
 def _tab_players():
     data    = st.session_state["data"]
     players = data.setdefault("players", {})
+    ranking = data.get("ranking", {})
+    t       = st.session_state.get("tournament")
 
-    h1, h2 = st.columns([5, 1])
-    with h1:
-        section_label("Jogadoras Cadastradas")
-    with h2:
+    # ── Header ────────────────────────────────────────
+    st.markdown(
+        '<div style="display:flex;align-items:center;gap:.55rem;margin-bottom:1.2rem">'
+        '<span style="font-size:1.2rem">👥</span>'
+        '<span style="font-weight:900;font-size:1rem;letter-spacing:.05em;'
+        'color:#1a1613;text-transform:uppercase">Gestão de Atletas</span>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    # ── New player form + PIN instructions ─────────────
+    col_form, col_info = st.columns([3, 2], gap="large")
+
+    with col_form:
+        section_label("Novo Registo")
+        with st.form("add_player", clear_on_submit=True):
+            field_label("Nome de Arena")
+            new_name = st.text_input(
+                "np", placeholder="Ex: Dani Sakai",
+                label_visibility="collapsed",
+            )
+            submitted = st.form_submit_button(
+                "Adicionar Jogadora", type="primary", use_container_width=True,
+            )
+        if submitted:
+            n = new_name.strip()
+            if not n:
+                st.error("Nome não pode ser vazio.")
+            elif n.lower() in {x.lower() for x in players}:
+                st.error("Já existe uma jogadora com esse nome.")
+            else:
+                players[n] = {"pin_hash": None}
+                _persist()
+                st.success(f"✅ {n} adicionada!")
+                st.rerun()
         st.markdown(
-            f'<div style="background:#f97316;color:white;border-radius:20px;'
-            f'padding:.2rem .9rem;text-align:center;font-weight:800;'
-            f'font-size:.95rem;margin-top:.25rem">{len(players)}</div>',
+            '<div style="font-size:.74rem;color:#c49070;margin-top:.3rem">'
+            '🔒 Requer autenticação administrativa para editar.</div>',
             unsafe_allow_html=True,
         )
+
+    with col_info:
+        st.markdown(
+            '<div style="background:#fffbeb;border:1.5px solid #fde68a;'
+            'border-radius:14px;padding:1rem 1.1rem">'
+            '<div style="font-size:.7rem;font-weight:800;letter-spacing:.1em;'
+            'color:#d97706;margin-bottom:.5rem">💡 INSTRUÇÕES DE PIN</div>'
+            '<div style="font-size:.8rem;color:#78350f;line-height:1.55">'
+            'Cada atleta possui um código de 4 dígitos. Partilhe este número '
+            'confidencialmente com cada amiga. Com o PIN, elas poderão fazer login '
+            'no topo da aplicação, permitindo acesso aos dados individuais '
+            'personalizados diretamente no telemóvel!</div>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+    # ── Players table ─────────────────────────────────
+    st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+    section_label("Lista Geral de Atletas")
 
     if not players:
         st.markdown(
-            '<div style="text-align:center;padding:2.5rem 1rem;color:#c49070;font-size:.9rem">'
-            '🏖️  Nenhuma jogadora cadastrada ainda.<br>'
-            '<span style="font-size:.8rem">Adicione abaixo para começar.</span></div>',
+            '<div style="text-align:center;padding:2rem;color:#c49070">'
+            '🏖️  Nenhuma jogadora cadastrada ainda.</div>',
             unsafe_allow_html=True,
         )
     else:
-        player_list = sorted(players.items())
-        for i in range(0, len(player_list), 2):
-            cols = st.columns(2, gap="small")
-            for j, (name, info) in enumerate(player_list[i : i + 2]):
-                with cols[j]:
-                    has_pin = bool(info.get("pin_hash"))
-                    with st.container(border=True):
-                        top1, top2 = st.columns([3, 1])
-                        with top1:
-                            badge = (
-                                '🔒 <span style="color:#16a34a;font-size:.73rem">PIN definido</span>'
-                                if has_pin else
-                                '⚠️ <span style="color:#dc2626;font-size:.73rem">Sem PIN</span>'
-                            )
-                            st.markdown(
-                                f'<div style="font-weight:700;font-size:.92rem;color:#1a1a1a">'
-                                f'{name}</div>'
-                                f'<div style="margin-top:.15rem">{badge}</div>',
-                                unsafe_allow_html=True,
-                            )
-                        with top2:
-                            if st.button("✕", key=f"del_{name}", help=f"Remover {name}"):
-                                del players[name]
-                                _persist()
-                                st.rerun()
-                        if has_pin:
-                            if st.button("🔓 Redefinir PIN", key=f"rst_{name}",
-                                         use_container_width=True):
-                                players[name]["pin_hash"] = None
-                                _persist()
-                                st.success(f"PIN de {name} redefinido.")
-                                st.rerun()
+        hc1, hc2, hc3, hc4 = st.columns([4, 2, 2.5, 1])
+        for col, lbl in zip([hc1, hc2, hc3, hc4],
+                             ["ATLETA", "PIN EXCLUSIVO", "PARTIDAS JOGADAS", ""]):
+            col.markdown(
+                f'<div style="font-size:.62rem;font-weight:800;letter-spacing:.1em;'
+                f'color:#9b8679;text-transform:uppercase;padding:.3rem 0">{lbl}</div>',
+                unsafe_allow_html=True,
+            )
+        st.markdown(
+            '<div style="border-top:2px solid #edddd0;margin-bottom:.15rem"></div>',
+            unsafe_allow_html=True,
+        )
 
-        st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-        if st.button("🔓  Redefinir TODOS os PINs", use_container_width=True):
-            for nm in players:
-                players[nm]["pin_hash"] = None
-            _persist()
-            st.success("Todos os PINs foram redefinidos.")
+        for pname, info in sorted(players.items()):
+            has_pin = bool(info.get("pin_hash"))
 
-    st.markdown("---")
-    section_label("Adicionar Jogadoras")
-    tab_single, tab_bulk = st.tabs(["➕  Uma por vez", "📋  Importar lista"])
+            # Match count: current tournament → ranking fallback
+            m_count = 0
+            if t is not None:
+                if t.format_id == "rainha_da_praia":
+                    m_count = t.player_stats.get(pname, {}).get("matches", 0)
+                elif t.format_id == "duplas_fixas":
+                    for team in getattr(t, "teams", []):
+                        if pname in team["players"]:
+                            m_count = t.team_stats.get(team["name"], {}).get("matches", 0)
+                            break
+            if m_count == 0:
+                m_count = ranking.get(pname, {}).get("matches", 0)
 
-    with tab_single:
-        with st.form("add_player", clear_on_submit=True):
-            new_name = st.text_input("Nome", placeholder="Ex: Ana Paula")
-            if st.form_submit_button("➕  Adicionar", type="primary"):
-                n = new_name.strip()
-                if not n:
-                    st.error("Nome não pode ser vazio.")
-                elif n.lower() in {x.lower() for x in players}:
-                    st.error("Já existe uma jogadora com esse nome.")
-                else:
-                    players[n] = {"pin_hash": None}
+            rc1, rc2, rc3, rc4 = st.columns([4, 2, 2.5, 1])
+            with rc1:
+                st.markdown(
+                    f'<div style="font-weight:700;font-size:.92rem;'
+                    f'padding:.45rem 0;color:#1a1613">{pname}</div>',
+                    unsafe_allow_html=True,
+                )
+            with rc2:
+                pin_html = (
+                    '<span style="background:#f3f4f6;border:1px solid #e5e7eb;'
+                    'border-radius:6px;padding:.22rem .65rem;font-family:monospace;'
+                    'font-size:.88rem;color:#374151;letter-spacing:.15em">****</span>'
+                    if has_pin else
+                    '<span style="color:#dc2626;font-size:.78rem;font-weight:600">'
+                    'Sem PIN</span>'
+                )
+                st.markdown(
+                    f'<div style="padding:.45rem 0">{pin_html}</div>',
+                    unsafe_allow_html=True,
+                )
+            with rc3:
+                st.markdown(
+                    f'<div style="text-align:center;font-weight:700;'
+                    f'font-size:.92rem;padding:.45rem 0">{m_count}</div>',
+                    unsafe_allow_html=True,
+                )
+            with rc4:
+                if st.button("✕", key=f"del_{pname}", help=f"Remover {pname}"):
+                    del players[pname]
                     _persist()
-                    st.success(f"✅ {n} adicionada!")
                     st.rerun()
 
-    with tab_bulk:
-        st.caption("Cole vários nomes de uma vez — um por linha.")
-        bulk_raw = st.text_area("bulk", placeholder="Ana Paula\nBia\nCarol",
-                                height=130, label_visibility="collapsed", key="bulk_add")
-        if st.button("📋  Importar Lista", type="primary", use_container_width=True):
-            names = [x.strip() for x in bulk_raw.strip().splitlines() if x.strip()]
-            added, skipped = [], []
-            for nm in names:
-                if nm.lower() in {x.lower() for x in players}:
-                    skipped.append(nm)
-                else:
-                    players[nm] = {"pin_hash": None}
-                    added.append(nm)
-            if added:
-                _persist()
-                st.success(f"✅ {len(added)} adicionada(s): {', '.join(added)}")
-            if skipped:
-                st.warning(f"⚠️ Já existiam: {', '.join(skipped)}")
-            if added:
-                st.rerun()
+            st.markdown(
+                '<div style="border-bottom:1px solid #faf0e6;margin:0 0 .05rem"></div>',
+                unsafe_allow_html=True,
+            )
+
+    # ── Advanced actions ──────────────────────────────
+    st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+    with st.expander("⚙️ Ações avançadas · importar / redefinir PINs"):
+        tab_bulk, tab_reset = st.tabs(["📋 Importar lista", "🔓 Redefinir PINs"])
+
+        with tab_bulk:
+            st.caption("Cole vários nomes de uma vez — um por linha.")
+            bulk_raw = st.text_area(
+                "bulk", placeholder="Ana Paula\nBia\nCarol",
+                height=130, label_visibility="collapsed", key="bulk_add",
+            )
+            if st.button("📋 Importar Lista", type="primary", use_container_width=True):
+                names = [x.strip() for x in bulk_raw.strip().splitlines() if x.strip()]
+                added, skipped = [], []
+                for nm in names:
+                    if nm.lower() in {x.lower() for x in players}:
+                        skipped.append(nm)
+                    else:
+                        players[nm] = {"pin_hash": None}
+                        added.append(nm)
+                if added:
+                    _persist()
+                    st.success(f"✅ {len(added)} adicionada(s): {', '.join(added)}")
+                if skipped:
+                    st.warning(f"⚠️ Já existiam: {', '.join(skipped)}")
+                if added:
+                    st.rerun()
+
+        with tab_reset:
+            if players:
+                sel_reset = st.selectbox(
+                    "Jogadora", ["— todas —"] + sorted(players.keys()),
+                    key="sel_rst_pin",
+                )
+                if st.button("🔓 Redefinir PIN selecionado", use_container_width=True,
+                             key="do_rst_pin"):
+                    if sel_reset == "— todas —":
+                        for nm in players:
+                            players[nm]["pin_hash"] = None
+                        _persist()
+                        st.success("Todos os PINs foram redefinidos.")
+                    else:
+                        players[sel_reset]["pin_hash"] = None
+                        _persist()
+                        st.success(f"PIN de {sel_reset} redefinido.")
+                    st.rerun()
+            else:
+                st.caption("Nenhuma jogadora cadastrada.")
 
 
 # ─────────────────────────────────────────────
