@@ -805,15 +805,47 @@ def _tab_tournament():
     if t is not None:
         if st.session_state.get("show_archive_form"):
             _render_archive_form(t)
+        elif st.session_state.get("confirm_delete_tourn"):
+            # ── Confirmation dialog ────────────────────
+            st.markdown(
+                '<div style="background:#fef2f2;border:1.5px solid #fca5a5;'
+                'border-radius:14px;padding:1rem 1.2rem;margin-bottom:.8rem">'
+                '<div style="font-weight:800;color:#dc2626;font-size:.95rem;'
+                'margin-bottom:.3rem">⚠️ Apagar torneio?</div>'
+                '<div style="font-size:.83rem;color:#7f1d1d">'
+                'Esta ação é <b>irreversível</b>. Todos os resultados e rodadas '
+                'serão perdidos. O ranking acumulado <b>não</b> será afetado.</div>'
+                '</div>',
+                unsafe_allow_html=True,
+            )
+            cy, cn = st.columns(2)
+            with cy:
+                if st.button("✅ Sim, apagar torneio", type="primary",
+                             use_container_width=True, key="yes_del_tourn"):
+                    st.session_state["tournament"] = None
+                    st.session_state["data"]["tournament"] = None
+                    st.session_state.pop("confirm_delete_tourn", None)
+                    _persist()
+                    st.rerun()
+            with cn:
+                if st.button("← Cancelar", use_container_width=True,
+                             key="no_del_tourn"):
+                    st.session_state.pop("confirm_delete_tourn", None)
+                    st.rerun()
         else:
-            _, c2, c3 = st.columns([3.5, 2, 1.5])
-            with c2:
+            _, c1, c2, c3 = st.columns([2.5, 2, 1.8, 1.2])
+            with c1:
                 if st.button("📊  Registrar no Ranking", use_container_width=True):
                     _register_in_ranking(t)
                     st.success("✅ Resultados registrados no Ranking Geral!")
-            with c3:
+            with c2:
                 if st.button("🏁  Encerrar Torneio", use_container_width=True):
                     st.session_state["show_archive_form"] = True
+                    st.rerun()
+            with c3:
+                if st.button("🗑️  Apagar", use_container_width=True,
+                             help="Apaga o torneio sem salvar no histórico"):
+                    st.session_state["confirm_delete_tourn"] = True
                     st.rerun()
             t.render(can_edit=True)
 
