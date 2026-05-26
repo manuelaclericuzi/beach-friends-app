@@ -54,22 +54,22 @@ _FMT_NAME     = {k: v["label"] for k, v in FORMATS.items()}
 _FORMAT_RULES = {
     "rainha_da_praia": [
         ("🔄", "Parceiras <b>rotacionam</b> a cada rodada — sem dupla fixa"),
-        ("🎾", "Set de <b>4 games</b> — vence quem chegar a <b>3 primeiro</b>"),
-        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🎾", "Primeiro a <b>4 games</b> vence — placar pode chegar a 7 games"),
+        ("🔥", "Empate 3–3 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
         ("🏆", "Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>"),
         ("⚖️", "Desempate: Pontos → Saldo de games → Games pró → Alfabético"),
     ],
     "duplas_fixas": [
         ("🤝", "Duplas <b>fixas</b> formadas antes do torneio"),
-        ("🎾", "Set de <b>4 games</b> — vence quem chegar a <b>3 primeiro</b>"),
-        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🎾", "Primeiro a <b>4 games</b> vence — placar pode chegar a 7 games"),
+        ("🔥", "Empate 3–3 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
         ("🏆", "Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>"),
         ("📊", "Round-robin: todas as duplas se enfrentam"),
     ],
     "mata_mata": [
         ("⚔️", "<b>Eliminação direta</b> — perde, sai"),
-        ("🎾", "Set de <b>4 games</b> — vence quem chegar a <b>3 primeiro</b>"),
-        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🎾", "Primeiro a <b>4 games</b> vence — placar pode chegar a 7 games"),
+        ("🔥", "Empate 3–3 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
         ("🔄", "<b>BYE automático</b> para número ímpar de participantes"),
         ("🏆", "Vencedora avança automaticamente no bracket"),
     ],
@@ -1393,9 +1393,9 @@ def _tab_players():
             unsafe_allow_html=True,
         )
     else:
-        hc1, hc2, hc3, hc4 = st.columns([4, 2, 2.5, 1])
-        for col, lbl in zip([hc1, hc2, hc3, hc4],
-                             ["ATLETA", "PIN EXCLUSIVO", "PARTIDAS JOGADAS", ""]):
+        hc1, hc2, hc3, hc4, hc5 = st.columns([4, 2, 2.5, 1, 1])
+        for col, lbl in zip([hc1, hc2, hc3, hc4, hc5],
+                             ["ATLETA", "PIN EXCLUSIVO", "PARTIDAS JOGADAS", "", ""]):
             col.markdown(
                 f'<div style="font-size:.62rem;font-weight:800;letter-spacing:.1em;'
                 f'color:#9b8679;text-transform:uppercase;padding:.3rem 0">{lbl}</div>',
@@ -1406,6 +1406,7 @@ def _tab_players():
             unsafe_allow_html=True,
         )
 
+        editing_player = st.session_state.get("editing_player")
         for pname, info in sorted(players.items()):
             has_pin = bool(info.get("pin_hash"))
 
@@ -1422,37 +1423,86 @@ def _tab_players():
             if m_count == 0:
                 m_count = ranking.get(pname, {}).get("matches", 0)
 
-            rc1, rc2, rc3, rc4 = st.columns([4, 2, 2.5, 1])
-            with rc1:
-                st.markdown(
-                    f'<div style="font-weight:700;font-size:.92rem;'
-                    f'padding:.45rem 0;color:#1a1613">{pname}</div>',
-                    unsafe_allow_html=True,
+            if editing_player == pname:
+                # ── Inline rename form ───────────────────────────
+                in_tourn = t is not None and pname in (
+                    list(getattr(t, "players", [])) +
+                    list(getattr(t, "participants", []))
                 )
-            with rc2:
-                pin_html = (
-                    '<span style="background:#f3f4f6;border:1px solid #e5e7eb;'
-                    'border-radius:6px;padding:.22rem .65rem;font-family:monospace;'
-                    'font-size:.88rem;color:#374151;letter-spacing:.15em">****</span>'
-                    if has_pin else
-                    '<span style="color:#dc2626;font-size:.78rem;font-weight:600">'
-                    'Sem PIN</span>'
-                )
-                st.markdown(
-                    f'<div style="padding:.45rem 0">{pin_html}</div>',
-                    unsafe_allow_html=True,
-                )
-            with rc3:
-                st.markdown(
-                    f'<div style="text-align:center;font-weight:700;'
-                    f'font-size:.92rem;padding:.45rem 0">{m_count}</div>',
-                    unsafe_allow_html=True,
-                )
-            with rc4:
-                if st.button("✕", key=f"del_{pname}", help=f"Remover {pname}"):
-                    del players[pname]
-                    _persist()
-                    st.rerun()
+                ec1, ec2, ec3 = st.columns([5, 1, 1])
+                with ec1:
+                    new_pname = st.text_input(
+                        "Renomear", value=pname,
+                        key=f"edit_name_{pname}",
+                        label_visibility="collapsed",
+                    )
+                with ec2:
+                    if st.button("💾", key=f"save_edit_{pname}",
+                                 help="Salvar", use_container_width=True):
+                        new_n = new_pname.strip()
+                        if not new_n:
+                            st.error("Nome não pode ser vazio.")
+                        elif new_n != pname and new_n.lower() in {
+                            x.lower() for x in players if x != pname
+                        }:
+                            st.error(f"Já existe uma jogadora com o nome '{new_n}'.")
+                        elif in_tourn:
+                            st.warning(
+                                f"⚠️ **{pname}** está no torneio ativo. "
+                                "Encerre ou apague o torneio antes de renomear."
+                            )
+                        else:
+                            if new_n != pname:
+                                players[new_n] = players.pop(pname)
+                                if pname in data.get("ranking", {}):
+                                    data["ranking"][new_n] = data["ranking"].pop(pname)
+                            st.session_state.pop("editing_player", None)
+                            _persist()
+                            st.rerun()
+                with ec3:
+                    if st.button("✕", key=f"cancel_edit_{pname}",
+                                 help="Cancelar", use_container_width=True):
+                        st.session_state.pop("editing_player", None)
+                        st.rerun()
+                if in_tourn:
+                    st.caption("⚠️ Jogadora está no torneio ativo — encerre antes de renomear.")
+            else:
+                # ── Normal row ───────────────────────────────────
+                rc1, rc2, rc3, rc4, rc5 = st.columns([4, 2, 2.5, 1, 1])
+                with rc1:
+                    st.markdown(
+                        f'<div style="font-weight:700;font-size:.92rem;'
+                        f'padding:.45rem 0;color:#1a1613">{pname}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with rc2:
+                    pin_html = (
+                        '<span style="background:#f3f4f6;border:1px solid #e5e7eb;'
+                        'border-radius:6px;padding:.22rem .65rem;font-family:monospace;'
+                        'font-size:.88rem;color:#374151;letter-spacing:.15em">****</span>'
+                        if has_pin else
+                        '<span style="color:#dc2626;font-size:.78rem;font-weight:600">'
+                        'Sem PIN</span>'
+                    )
+                    st.markdown(
+                        f'<div style="padding:.45rem 0">{pin_html}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with rc3:
+                    st.markdown(
+                        f'<div style="text-align:center;font-weight:700;'
+                        f'font-size:.92rem;padding:.45rem 0">{m_count}</div>',
+                        unsafe_allow_html=True,
+                    )
+                with rc4:
+                    if st.button("✏️", key=f"edit_{pname}", help=f"Renomear {pname}"):
+                        st.session_state["editing_player"] = pname
+                        st.rerun()
+                with rc5:
+                    if st.button("✕", key=f"del_{pname}", help=f"Remover {pname}"):
+                        del players[pname]
+                        _persist()
+                        st.rerun()
 
             st.markdown(
                 '<div style="border-bottom:1px solid #faf0e6;margin:0 0 .05rem"></div>',

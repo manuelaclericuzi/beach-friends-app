@@ -271,14 +271,14 @@ class MataMata(BaseTournamentFormat):
                             st.markdown(f"<div class='team-label'><b>{pa}</b></div>",
                                         unsafe_allow_html=True)
                         with c2:
-                            ga = st.number_input("A", 0, 3, 0, key=f"mm_ga_{r_idx}_{m_idx}",
+                            ga = st.number_input("A", 0, 4, 0, key=f"mm_ga_{r_idx}_{m_idx}",
                                                  label_visibility="collapsed")
                         with c3:
                             st.markdown("<div style='text-align:center;padding-top:6px;"
                                         "font-size:1.1rem;font-weight:700;color:#bbb'>×</div>",
                                         unsafe_allow_html=True)
                         with c4:
-                            gb = st.number_input("B", 0, 3, 0, key=f"mm_gb_{r_idx}_{m_idx}",
+                            gb = st.number_input("B", 0, 4, 0, key=f"mm_gb_{r_idx}_{m_idx}",
                                                  label_visibility="collapsed")
                         with c5:
                             st.markdown(f"<div class='team-label' style='text-align:right'>"
@@ -313,9 +313,9 @@ class MataMata(BaseTournamentFormat):
             st.error(f"Placar {ga}×{gb} inválido.")
             return
         stw = None
-        if ga == 2 and gb == 2:
+        if ga == 3 and gb == 3:
             if st_sel == "— sem super tie":
-                st.error("2×2 exige indicar o Super Tie-Break.")
+                st.error("3×3 exige indicar o Super Tie-Break.")
                 return
             stw = "A" if pa in st_sel else "B"
         self.submit_match(r_idx, m_idx, MatchScore(ga, gb, stw))

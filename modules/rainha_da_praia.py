@@ -467,14 +467,14 @@ def _render_score_form(form_key: str, matches: List[Dict], on_submit):
                 ta_n = f"{ta[0]}<br>{ta[1]}" if isinstance(ta, tuple) else str(ta)
                 st.markdown(f"<div class='team-label'>{ta_n}</div>", unsafe_allow_html=True)
             with c2:
-                ga = st.number_input("A", 0, 3, 0, key=f"{form_key}_ga_{i}",
+                ga = st.number_input("A", 0, 4, 0, key=f"{form_key}_ga_{i}",
                                      label_visibility="collapsed")
             with c3:
                 st.markdown("<div style='text-align:center;padding-top:6px;"
                             "font-size:1.1rem;font-weight:700;color:#bbb'>×</div>",
                             unsafe_allow_html=True)
             with c4:
-                gb = st.number_input("B", 0, 3, 0, key=f"{form_key}_gb_{i}",
+                gb = st.number_input("B", 0, 4, 0, key=f"{form_key}_gb_{i}",
                                      label_visibility="collapsed")
             with c5:
                 tb_n = f"{tb[0]}<br>{tb[1]}" if isinstance(tb, tuple) else str(tb)
@@ -503,9 +503,9 @@ def _render_score_form(form_key: str, matches: List[Dict], on_submit):
                 errors.append(f"Partida {i+1}: placar {ga}×{gb} inválido.")
                 continue
             stw = None
-            if ga == 2 and gb == 2:
+            if ga == 3 and gb == 3:
                 if st_sel == "— sem super tie":
-                    errors.append(f"Partida {i+1}: 2×2 exige indicar o Super Tie-Break.")
+                    errors.append(f"Partida {i+1}: 3×3 exige indicar o Super Tie-Break.")
                     continue
                 ta_label = f"{ta[0]} & {ta[1]}" if isinstance(ta, tuple) else str(ta)
                 stw = "A" if ta_label in st_sel else "B"
