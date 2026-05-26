@@ -54,22 +54,22 @@ _FMT_NAME     = {k: v["label"] for k, v in FORMATS.items()}
 _FORMAT_RULES = {
     "rainha_da_praia": [
         ("🔄", "Parceiras <b>rotacionam</b> a cada rodada — sem dupla fixa"),
-        ("🎾", "Primeiro a <b>4 games</b> vence — placar pode chegar a 7 games"),
-        ("🔥", "Empate 3–3 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🎾", "Set de <b>4 games</b> — vence com 3 ou 4 vitórias (4-0, 3-1)"),
+        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
         ("🏆", "Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>"),
         ("⚖️", "Desempate: Pontos → Saldo de games → Games pró → Alfabético"),
     ],
     "duplas_fixas": [
         ("🤝", "Duplas <b>fixas</b> formadas antes do torneio"),
-        ("🎾", "Primeiro a <b>4 games</b> vence — placar pode chegar a 7 games"),
-        ("🔥", "Empate 3–3 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🎾", "Set de <b>4 games</b> — vence com 3 ou 4 vitórias (4-0, 3-1)"),
+        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
         ("🏆", "Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>"),
         ("📊", "Round-robin: todas as duplas se enfrentam"),
     ],
     "mata_mata": [
         ("⚔️", "<b>Eliminação direta</b> — perde, sai"),
-        ("🎾", "Primeiro a <b>4 games</b> vence — placar pode chegar a 7 games"),
-        ("🔥", "Empate 3–3 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🎾", "Set de <b>4 games</b> — vence com 3 ou 4 vitórias (4-0, 3-1)"),
+        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
         ("🔄", "<b>BYE automático</b> para número ímpar de participantes"),
         ("🏆", "Vencedora avança automaticamente no bracket"),
     ],

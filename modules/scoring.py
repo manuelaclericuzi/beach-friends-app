@@ -24,7 +24,7 @@ class MatchResult:
     is_super_tie: bool
 
 
-VALID_SCORES = {(4, 0), (4, 1), (4, 2), (3, 3), (2, 4), (1, 4), (0, 4)}
+VALID_SCORES = {(4, 0), (3, 1), (2, 2), (1, 3), (0, 4)}
 
 
 # ─────────────────────────────────────────────
@@ -37,11 +37,11 @@ def is_valid_score(ga: int, gb: int) -> bool:
 
 def compute_result(score: MatchScore) -> MatchResult:
     ga, gb = score.games_a, score.games_b
-    if ga == 3 and gb == 3:
-        # Super Tie-Break: standardised as 4-3 for saldo purposes
+    if ga == 2 and gb == 2:
+        # Super Tie-Break: standardised as 3-2 for saldo purposes
         if score.super_tie_winner == "A":
-            return MatchResult("A", 3, 0, 4, 3, 1, -1, True)
-        return MatchResult("B", 0, 3, 3, 4, -1, 1, True)
+            return MatchResult("A", 3, 0, 3, 2, 1, -1, True)
+        return MatchResult("B", 0, 3, 2, 3, -1, 1, True)
     if ga > gb:
         return MatchResult("A", 3, 0, ga, gb, ga - gb, gb - ga, False)
     return MatchResult("B", 0, 3, ga, gb, ga - gb, gb - ga, False)

@@ -503,9 +503,9 @@ def _render_score_form(form_key: str, matches: List[Dict], on_submit):
                 errors.append(f"Partida {i+1}: placar {ga}×{gb} inválido.")
                 continue
             stw = None
-            if ga == 3 and gb == 3:
+            if ga == 2 and gb == 2:
                 if st_sel == "— sem super tie":
-                    errors.append(f"Partida {i+1}: 3×3 exige indicar o Super Tie-Break.")
+                    errors.append(f"Partida {i+1}: 2×2 exige indicar o Super Tie-Break.")
                     continue
                 ta_label = f"{ta[0]} & {ta[1]}" if isinstance(ta, tuple) else str(ta)
                 stw = "A" if ta_label in st_sel else "B"

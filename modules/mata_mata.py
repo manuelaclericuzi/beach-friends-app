@@ -313,9 +313,9 @@ class MataMata(BaseTournamentFormat):
             st.error(f"Placar {ga}×{gb} inválido.")
             return
         stw = None
-        if ga == 3 and gb == 3:
+        if ga == 2 and gb == 2:
             if st_sel == "— sem super tie":
-                st.error("3×3 exige indicar o Super Tie-Break.")
+                st.error("2×2 exige indicar o Super Tie-Break.")
                 return
             stw = "A" if pa in st_sel else "B"
         self.submit_match(r_idx, m_idx, MatchScore(ga, gb, stw))
