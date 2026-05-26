@@ -40,6 +40,33 @@ FORMATS = {
 }
 FORMAT_BY_ID = {v["id"]: v for v in FORMATS.values()}
 
+# Regras específicas por formato
+_FORMAT_RULES = {
+    "rainha_da_praia": [
+        "🎾 Parceiras <b>rotacionam</b> a cada rodada",
+        "🏅 Melhor de <b>4 games</b> por partida",
+        "🔥 Empate 2×2 → <b>Super Tie-Break</b> (10 pts)",
+        "🏆 Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>",
+        "⚡ Super Tie: saldo computado como <b>3×2</b>",
+        "📊 Pontuação <b>individual</b> acumulada",
+    ],
+    "duplas_fixas": [
+        "🤝 Duplas <b>fixas</b> durante todo o torneio",
+        "🏅 Melhor de <b>4 games</b> por partida",
+        "🔥 Empate 2×2 → <b>Super Tie-Break</b> (10 pts)",
+        "🏆 Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>",
+        "⚡ Super Tie: saldo computado como <b>3×2</b>",
+        "📊 Round-robin completo entre <b>duplas</b>",
+    ],
+    "mata_mata": [
+        "⚔️ <b>Eliminação direta</b> — perde, sai",
+        "🏅 Melhor de <b>4 games</b> por partida",
+        "🔥 Empate 2×2 → <b>Super Tie-Break</b> (10 pts)",
+        "🔄 <b>BYE automático</b> para número ímpar",
+        "🏆 Vencedora <b>avança automaticamente</b> no bracket",
+    ],
+}
+
 
 # ─────────────────────────────────────────────
 #  Session bootstrap
@@ -221,24 +248,88 @@ def render_player():
         if st.button("Sair", use_container_width=True):
             _logout()
 
-    if t is None:
-        st.markdown("<div style='height:3rem'></div>", unsafe_allow_html=True)
-        col = st.columns([1, 2, 1])[1]
-        with col:
-            with st.container(border=True):
-                st.markdown(
-                    '<div style="text-align:center;padding:2rem 1rem">'
-                    '<div style="font-size:3.5rem">🏖️</div>'
-                    '<div style="font-size:1.1rem;font-weight:700;color:#1a1a1a;margin:.5rem 0">'
-                    'Nenhum torneio ativo</div>'
-                    '<div style="font-size:.85rem;color:#c49070">'
-                    'Aguarde a administradora iniciar o torneio.</div>'
-                    '</div>',
-                    unsafe_allow_html=True,
-                )
+    ptabs = st.tabs(["🏆  Torneio", "📊  Ranking"])
+
+    with ptabs[0]:
+        if t is None:
+            st.markdown("<div style='height:2rem'></div>", unsafe_allow_html=True)
+            col = st.columns([1, 2, 1])[1]
+            with col:
+                with st.container(border=True):
+                    st.markdown(
+                        '<div style="text-align:center;padding:2rem 1rem">'
+                        '<div style="font-size:3.5rem">🏖️</div>'
+                        '<div style="font-size:1.1rem;font-weight:700;color:#1a1a1a;margin:.5rem 0">'
+                        'Nenhum torneio ativo</div>'
+                        '<div style="font-size:.85rem;color:#c49070">'
+                        'Aguarde a administradora iniciar o torneio.</div>'
+                        '</div>',
+                        unsafe_allow_html=True,
+                    )
+        else:
+            t.render(can_edit=False)
+
+    with ptabs[1]:
+        _render_player_ranking(fresh)
+
+
+def _render_player_ranking(data: dict):
+    ranking: dict = data.get("ranking", {})
+    if not ranking:
+        st.markdown(
+            '<div style="text-align:center;padding:2rem;color:#c49070;font-size:.9rem">'
+            '📊  Ranking ainda sem dados.<br>'
+            '<span style="font-size:.8rem">Será atualizado ao fim de cada torneio.</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
         return
 
-    t.render(can_edit=False)
+    sorted_ranking = sorted(
+        ranking.items(),
+        key=lambda x: (-x[1].get("points", 0), -x[1].get("game_balance", 0), x[0]),
+    )
+    medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+    for i, (name, s) in enumerate(sorted_ranking):
+        pos = medals.get(i, f"{i + 1}º")
+        gb = s.get("game_balance", 0)
+        gb_color = "#16a34a" if gb >= 0 else "#dc2626"
+        gb_str = f"+{gb}" if gb > 0 else str(gb)
+        wins = s.get("wins", 0)
+        total = s.get("matches", 0)
+        pct = f"{round(wins / total * 100)}%" if total else "—"
+        with st.container(border=True):
+            c1, c2, c3, c4 = st.columns([2.5, 1, 1, 1])
+            with c1:
+                st.markdown(
+                    f'<div style="font-weight:800;font-size:.95rem">{pos} {name}</div>'
+                    f'<div style="font-size:.7rem;color:#c49070">'
+                    f'{s.get("tournaments", 0)} torneio(s)</div>',
+                    unsafe_allow_html=True,
+                )
+            with c2:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.25rem;font-weight:900;color:#f97316">'
+                    f'{s.get("points", 0)}</div>'
+                    f'<div style="font-size:.67rem;color:#c49070">pts</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with c3:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.05rem;font-weight:700;color:{gb_color}">'
+                    f'{gb_str}</div>'
+                    f'<div style="font-size:.67rem;color:#c49070">saldo</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with c4:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.05rem;font-weight:700">{pct}</div>'
+                    f'<div style="font-size:.67rem;color:#c49070">% vitória</div></div>',
+                    unsafe_allow_html=True,
+                )
 
 
 # ─────────────────────────────────────────────
@@ -255,13 +346,64 @@ def render_admin():
         if st.button("Sair", use_container_width=True):
             _logout()
 
-    tabs = st.tabs(["🏆  Torneio", "👥  Jogadoras", "⚙️  Config"])
+    tabs = st.tabs(["🏆  Torneio", "👥  Jogadoras", "📊  Ranking", "⚙️  Config"])
     with tabs[0]:
         _tab_tournament()
     with tabs[1]:
         _tab_players()
     with tabs[2]:
+        _tab_ranking()
+    with tabs[3]:
         _tab_settings()
+
+
+# ─────────────────────────────────────────────
+#  Ranking helpers
+# ─────────────────────────────────────────────
+
+def _extract_standings(t) -> dict:
+    """Return {player_name: stats_dict} from any tournament format."""
+    from modules.scoring import empty_stats
+    standings: dict = {}
+
+    if t.format_id == "rainha_da_praia":
+        standings = {k: dict(v) for k, v in t.player_stats.items()}
+
+    elif t.format_id == "duplas_fixas":
+        for team in getattr(t, "teams", []):
+            ts = t.team_stats.get(team["name"], empty_stats())
+            for player in team["players"]:
+                standings[player] = dict(ts)
+
+    elif t.format_id == "mata_mata":
+        from modules.scoring import empty_stats as es
+        for p in t.participants:
+            standings[p] = {**es(), "matches": 1}
+        if t.champion:
+            standings[t.champion] = {**es(), "matches": 1, "wins": 1, "points": 3}
+
+    return standings
+
+
+def _register_in_ranking(t) -> None:
+    data = st.session_state["data"]
+    ranking: dict = data.setdefault("ranking", {})
+    standings = _extract_standings(t)
+
+    for player, stats in standings.items():
+        if player not in ranking:
+            ranking[player] = {
+                "tournaments": 0, "matches": 0,
+                "wins": 0, "points": 0, "game_balance": 0,
+            }
+        r = ranking[player]
+        r["tournaments"] += 1
+        r["matches"]      += stats.get("matches", 0)
+        r["wins"]         += stats.get("wins", 0)
+        r["points"]       += stats.get("points", 0)
+        r["game_balance"] += stats.get("game_balance", 0)
+
+    _persist()
 
 
 # ── Tab: Torneio ─────────────────────────────
@@ -271,9 +413,13 @@ def _tab_tournament():
     if t is None:
         _create_tournament_ui()
     else:
-        c1, c2 = st.columns([5, 1])
+        c1, c2, c3 = st.columns([3.5, 2, 1.5])
         with c2:
-            if st.button("🗑 Encerrar Torneio", use_container_width=True):
+            if st.button("📊  Registrar no Ranking", use_container_width=True):
+                _register_in_ranking(t)
+                st.success("✅ Resultados registrados no Ranking Geral!")
+        with c3:
+            if st.button("🗑 Encerrar", use_container_width=True):
                 st.session_state["tournament"] = None
                 st.session_state["data"]["tournament"] = None
                 _persist()
@@ -351,15 +497,12 @@ def _create_tournament_ui():
             f'{fmt["desc"]}</div>',
             unsafe_allow_html=True,
         )
+        rules_html = "".join(f"{r}<br>" for r in _FORMAT_RULES.get(fmt["id"], []))
         st.markdown(
-            '<div style="background:#fef9f4;border:1.5px solid #f0d4b8;'
-            'border-radius:12px;padding:.9rem 1.1rem;'
-            'font-size:.8rem;color:#92400e;line-height:1.8">'
-            '<b style="font-weight:800">📋 Regras</b><br>'
-            '🎾 Melhor de 4 games<br>'
-            '🔥 Empate 2×2 → Super Tie-Break (10 pts)<br>'
-            '🏅 Vitória = <b>3 pts</b> · Derrota = <b>0 pts</b><br>'
-            '⚡ Super Tie: saldo computado como <b>3×2</b></div>',
+            f'<div style="background:#fef9f4;border:1.5px solid #f0d4b8;'
+            f'border-radius:12px;padding:.9rem 1.1rem;'
+            f'font-size:.8rem;color:#92400e;line-height:1.9">'
+            f'<b style="font-weight:800;font-size:.85rem">📋 Regras</b><br>{rules_html}</div>',
             unsafe_allow_html=True,
         )
 
@@ -505,6 +648,99 @@ def _tab_players():
                 st.warning(f"⚠️ Já existiam (ignoradas): {', '.join(skipped)}")
             if added:
                 st.rerun()
+
+
+# ── Tab: Ranking ─────────────────────────────
+
+def _tab_ranking():
+    data = st.session_state["data"]
+    ranking: dict = data.get("ranking", {})
+
+    h1, h2 = st.columns([5, 1])
+    with h1:
+        section_label("📊  Ranking Geral")
+    with h2:
+        if ranking and st.button("🗑 Limpar", use_container_width=True,
+                                 help="Apaga todo o histórico de ranking"):
+            data["ranking"] = {}
+            _persist()
+            st.rerun()
+
+    if not ranking:
+        st.markdown(
+            '<div style="text-align:center;padding:2.5rem 1rem;'
+            'color:#c49070;font-size:.9rem">'
+            '📊  Nenhum dado ainda.<br>'
+            '<span style="font-size:.8rem">Encerre um torneio e clique em '
+            '<b>Registrar no Ranking</b> para acumular resultados.</span></div>',
+            unsafe_allow_html=True,
+        )
+        return
+
+    # Sort: points DESC → game_balance DESC → name ASC
+    sorted_ranking = sorted(
+        ranking.items(),
+        key=lambda x: (-x[1].get("points", 0), -x[1].get("game_balance", 0), x[0]),
+    )
+
+    medals = {0: "🥇", 1: "🥈", 2: "🥉"}
+    st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
+
+    for i, (name, s) in enumerate(sorted_ranking):
+        pos = medals.get(i, f"{i + 1}º")
+        gb = s.get("game_balance", 0)
+        gb_color = "#16a34a" if gb >= 0 else "#dc2626"
+        gb_str = f"+{gb}" if gb > 0 else str(gb)
+        total = s.get("matches", 0)
+        wins = s.get("wins", 0)
+        pct = f"{round(wins / total * 100)}%" if total else "—"
+
+        with st.container(border=True):
+            c1, c2, c3, c4, c5, c6 = st.columns([2.5, 1, 1, 1, 1, 1])
+            with c1:
+                st.markdown(
+                    f'<div style="font-weight:800;font-size:.97rem;color:#1a1a1a">'
+                    f'{pos}  {name}</div>'
+                    f'<div style="font-size:.72rem;color:#c49070">'
+                    f'{s.get("tournaments", 0)} torneio(s)</div>',
+                    unsafe_allow_html=True,
+                )
+            with c2:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.35rem;font-weight:900;color:#f97316">'
+                    f'{s.get("points", 0)}</div>'
+                    f'<div style="font-size:.68rem;color:#c49070">pts</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with c3:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.1rem;font-weight:700;color:#1a1a1a">{wins}</div>'
+                    f'<div style="font-size:.68rem;color:#c49070">vitórias</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with c4:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.1rem;font-weight:700;color:#1a1a1a">{total}</div>'
+                    f'<div style="font-size:.68rem;color:#c49070">jogos</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with c5:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.1rem;font-weight:700;color:{gb_color}">{gb_str}</div>'
+                    f'<div style="font-size:.68rem;color:#c49070">saldo</div></div>',
+                    unsafe_allow_html=True,
+                )
+            with c6:
+                st.markdown(
+                    f'<div style="text-align:center">'
+                    f'<div style="font-size:1.1rem;font-weight:700;color:#1a1a1a">{pct}</div>'
+                    f'<div style="font-size:.68rem;color:#c49070">% vitória</div></div>',
+                    unsafe_allow_html=True,
+                )
 
 
 # ── Tab: Config ──────────────────────────────

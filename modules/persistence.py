@@ -138,6 +138,7 @@ def default_data() -> Dict:
         "admin_password_hash": default_admin_hash(),
         "players": {},
         "tournament": None,
+        "ranking": {},
     }
 
 
