@@ -95,6 +95,7 @@ class MataMata(BaseTournamentFormat):
         self.rounds: List[Dict] = []
         self.current_round_idx = 0
         self.champion: Optional[str] = None
+        self.tournament_date: str = ""
         # setup state
         self._entries: List[str] = []
 
@@ -117,6 +118,7 @@ class MataMata(BaseTournamentFormat):
             "current_round_idx": self.current_round_idx,
             "champion": self.champion,
             "entries": self._entries,
+            "tournament_date": self.tournament_date,
         }
 
     @classmethod
@@ -126,6 +128,7 @@ class MataMata(BaseTournamentFormat):
         obj.phase = d["phase"]
         obj.current_round_idx = d["current_round_idx"]
         obj.champion = d["champion"]
+        obj.tournament_date = d.get("tournament_date", "")
         obj._entries = d.get("entries", [])
         rounds = []
         for rnd in d["rounds"]:

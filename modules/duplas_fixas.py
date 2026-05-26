@@ -51,6 +51,7 @@ class DuplasFixas(BaseTournamentFormat):
         self.team_stats: Dict[str, Dict] = {}
         self.rounds: List[Dict] = []
         self.current_round_idx: int = 0
+        self.tournament_date: str = ""
         self._suggested: List[Tuple[str, str]] = [
             (players[i], players[i + 1]) for i in range(0, len(players) - 1, 2)
         ]
@@ -77,6 +78,7 @@ class DuplasFixas(BaseTournamentFormat):
             "rounds": rounds_s,
             "current_round_idx": self.current_round_idx,
             "suggested": [list(p) for p in self._suggested],
+            "tournament_date": self.tournament_date,
         }
 
     @classmethod
@@ -87,6 +89,7 @@ class DuplasFixas(BaseTournamentFormat):
         obj.teams = d["teams"]
         obj.team_stats = d["team_stats"]
         obj.current_round_idx = d["current_round_idx"]
+        obj.tournament_date = d.get("tournament_date", "")
         obj._suggested = [tuple(p) for p in d.get("suggested", [])]
         rounds = []
         for rnd in d["rounds"]:
@@ -210,17 +213,40 @@ class DuplasFixas(BaseTournamentFormat):
                 st.info("Aguardando o administrador confirmar as duplas.")
             return
 
-        from .ui_components import render_banner, render_ranking_section, render_history_match
-        render_banner(self.format_name, len(self.players),
-                      self.current_round_idx, len(self.rounds))
+        from .ui_components import render_ranking_section, render_history_match
 
-        tabs = st.tabs(["🏸 Rodada Atual", "🏆 Ranking", "📋 Histórico"])
-        with tabs[0]:
-            self._render_round(can_edit)
-        with tabs[1]:
-            render_ranking_section(self.get_ranking(), "team")
-        with tabs[2]:
-            self._render_history()
+        n     = len(self.players)
+        total = len(self.rounds)
+        idx   = self.current_round_idx
+        badge = "Encerrado 🏁" if idx >= total else f"Rodada {idx + 1} de {total}"
+
+        date_display = ""
+        if self.tournament_date:
+            try:
+                from datetime import date as _d
+                date_display = _d.fromisoformat(self.tournament_date).strftime("%d/%m/%Y")
+            except Exception:
+                date_display = self.tournament_date
+        date_part = f"  ·  {date_display}" if date_display else ""
+
+        exp_label = (
+            f"🎾  {self.format_name}{date_part}"
+            f"  ·  {n} participantes  ·  {badge}"
+        )
+
+        st.markdown(
+            '<span class="bf-tourn-exp-marker" style="display:none"></span>',
+            unsafe_allow_html=True,
+        )
+        with st.expander(exp_label, expanded=True,
+                         key=f"tourn_exp_{self.format_id}"):
+            tabs = st.tabs(["🏸 Rodada Atual", "🏆 Ranking", "📋 Histórico"])
+            with tabs[0]:
+                self._render_round(can_edit)
+            with tabs[1]:
+                render_ranking_section(self.get_ranking(), "team")
+            with tabs[2]:
+                self._render_history()
 
     def _render_formation(self):
         from .ui_components import section_label

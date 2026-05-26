@@ -119,6 +119,7 @@ class RainhaDaPraia(BaseTournamentFormat):
         self.players = players
         self.player_stats: Dict[str, Dict] = {p: empty_stats() for p in players}
         self.current_round_idx: int = 0
+        self.tournament_date: str = ""
         n = len(players)
         if num_rounds is None:
             num_rounds = 7 if n == 8 else 3 if n == 4 else min(n - 1, 8)
@@ -145,6 +146,7 @@ class RainhaDaPraia(BaseTournamentFormat):
             "rounds": rounds_s,
             "current_round_idx": self.current_round_idx,
             "pcount": [[list(k), v] for k, v in self._pcount.items()],
+            "tournament_date": self.tournament_date,
         }
 
     @classmethod
@@ -153,6 +155,7 @@ class RainhaDaPraia(BaseTournamentFormat):
         obj.players = d["players"]
         obj.player_stats = d["player_stats"]
         obj.current_round_idx = d["current_round_idx"]
+        obj.tournament_date = d.get("tournament_date", "")
         obj._pcount = {tuple(item[0]): item[1] for item in d.get("pcount", [])}
         rounds = []
         for rnd in d["rounds"]:
@@ -268,18 +271,41 @@ class RainhaDaPraia(BaseTournamentFormat):
     # ── render ───────────────────────────────────
 
     def render(self, can_edit: bool = False) -> None:
-        from .ui_components import render_banner, render_ranking_section, render_history_match
+        from .ui_components import render_ranking_section, render_history_match
 
-        render_banner(self.format_name, len(self.players),
-                      self.current_round_idx, len(self.rounds))
+        n     = len(self.players)
+        total = len(self.rounds)
+        idx   = self.current_round_idx
+        badge = "Encerrado 🏁" if idx >= total else f"Rodada {idx + 1} de {total}"
 
-        tabs = st.tabs(["🏸 Rodada Atual", "🏆 Ranking", "📋 Histórico"])
-        with tabs[0]:
-            self._render_round(can_edit)
-        with tabs[1]:
-            render_ranking_section(self.get_ranking(), "individual")
-        with tabs[2]:
-            self._render_history(render_history_match)
+        # Format date for display (YYYY-MM-DD → DD/MM/YYYY)
+        date_display = ""
+        if self.tournament_date:
+            try:
+                from datetime import date as _d
+                date_display = _d.fromisoformat(self.tournament_date).strftime("%d/%m/%Y")
+            except Exception:
+                date_display = self.tournament_date
+        date_part = f"  ·  {date_display}" if date_display else ""
+
+        exp_label = (
+            f"🎾  {self.format_name}{date_part}"
+            f"  ·  {n} participantes  ·  {badge}"
+        )
+
+        st.markdown(
+            '<span class="bf-tourn-exp-marker" style="display:none"></span>',
+            unsafe_allow_html=True,
+        )
+        with st.expander(exp_label, expanded=True,
+                         key=f"tourn_exp_{self.format_id}"):
+            tabs = st.tabs(["🏸 Rodada Atual", "🏆 Ranking", "📋 Histórico"])
+            with tabs[0]:
+                self._render_round(can_edit)
+            with tabs[1]:
+                render_ranking_section(self.get_ranking(), "individual")
+            with tabs[2]:
+                self._render_history(render_history_match)
 
     def _render_round(self, can_edit: bool):
         from .ui_components import bye_notice, round_done_banner

@@ -858,8 +858,14 @@ def _render_archive_form(t):
                                      label_visibility="collapsed", key="arc_loc")
 
             field_label("Data de Realização")
+            _tourn_date_default = dt_date.today()
+            if getattr(t, "tournament_date", ""):
+                try:
+                    _tourn_date_default = dt_date.fromisoformat(t.tournament_date)
+                except Exception:
+                    pass
             arc_date = st.date_input("arc_date_in",
-                                     value=dt_date.today(),
+                                     value=_tourn_date_default,
                                      label_visibility="collapsed", key="arc_date")
 
             st.markdown(
@@ -1081,21 +1087,28 @@ def _register_participants_ui():
             else:
                 save_perm = False
 
-        st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
+        st.markdown("<div style='height:.6rem'></div>", unsafe_allow_html=True)
+        field_label("Data do Torneio")
+        tourn_date = st.date_input(
+            "tourn_date_in", value=dt_date.today(),
+            label_visibility="collapsed", key="tourn_date",
+            format="DD/MM/YYYY",
+        )
 
+        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
         if st.button("🏆  Iniciar Torneio!", type="primary", use_container_width=True):
             if save_perm and new_name.strip():
                 nm = new_name.strip()
                 if nm not in st.session_state["data"]["players"]:
                     st.session_state["data"]["players"][nm] = {"pin_hash": None}
 
-            ok = _do_create(list(participants), fmt_id)
+            ok = _do_create(list(participants), fmt_id, str(tourn_date))
             if ok is False:
                 st.session_state.pop("pending_fmt", None)
                 st.session_state.pop("tourn_participants", None)
 
 
-def _do_create(players: list, fmt_id: str):
+def _do_create(players: list, fmt_id: str, tournament_date: str = ""):
     fmt    = FORMATS.get(fmt_id) or FORMATS[FORMAT_KEYS[0]]
     errors = []
     if len(players) < fmt["min"]:
@@ -1110,6 +1123,7 @@ def _do_create(players: list, fmt_id: str):
         return True
 
     t = fmt["cls"](players)
+    t.tournament_date = tournament_date
     st.session_state["tournament"] = t
     st.session_state["data"]["tournament"] = {"format": t.format_id, "data": t.to_dict()}
     _persist()

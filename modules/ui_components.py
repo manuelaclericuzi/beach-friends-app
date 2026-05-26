@@ -215,8 +215,41 @@ label[data-testid="stWidgetLabel"] > div > p {
 /* ── Caption ── */
 .stCaption { color: #9b8679 !important; font-size: .75rem !important; }
 
-/* ── Expander ── */
+/* ── Expander (default) ── */
 details { background: #fff !important; border: 1.5px solid #edddd0 !important; border-radius: 14px !important; }
+
+/* ── Tournament banner expander (styled dark card) ── */
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] details {
+    background: linear-gradient(135deg, #1a1613 0%, #2c2420 55%, #3d3330 100%) !important;
+    border: none !important;
+    border-radius: 18px !important;
+    box-shadow: 0 4px 20px rgba(0,0,0,.20), 0 1px 4px rgba(0,0,0,.12) !important;
+    overflow: hidden !important;
+    margin-bottom: .5rem !important;
+}
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] summary {
+    padding: 1.1rem 1.5rem !important;
+    min-height: 68px !important;
+    display: flex !important;
+    align-items: center !important;
+    cursor: pointer !important;
+}
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] summary:hover {
+    background: rgba(255,255,255,.04) !important;
+}
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] summary p,
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] summary span:not([data-testid]) {
+    color: #fff !important;
+    font-weight: 800 !important;
+    font-size: .93rem !important;
+    letter-spacing: -.01em !important;
+}
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] [data-testid="stExpanderToggleIcon"] {
+    color: rgba(255,255,255,.45) !important;
+}
+[data-testid="stMarkdownContainer"]:has(.bf-tourn-exp-marker) ~ [data-testid="stExpander"] [data-testid="stExpanderToggleIcon"] svg {
+    fill: rgba(255,255,255,.45) !important;
+}
 
 /* ── Container (border=True) accent left border ── */
 [data-testid="stVerticalBlockBorderWrapper"] {
