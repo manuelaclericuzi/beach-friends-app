@@ -7,8 +7,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-from modules.ui_components import (apply_custom_css, logo_header, hero,
-                                    field_label, section_label, render_ranking_section)
+from modules.ui_components import (apply_custom_css, logo_header, hero, topbar,
+                                    field_label, section_label, render_ranking_section,
+                                    render_rules_card)
 from modules.auth import hash_pin, verify, DEFAULT_ADMIN_PASSWORD
 from modules import persistence
 from modules.rainha_da_praia import RainhaDaPraia
@@ -22,48 +23,53 @@ apply_custom_css()
 # ─────────────────────────────────────────────
 
 FORMATS = {
-    "🏖️  Super 8 / Rainha da Praia": {
+    "rainha_da_praia": {
         "cls": RainhaDaPraia, "id": "rainha_da_praia",
-        "desc": "Parceiras rotacionam com matriz matemática perfeita. Pontuação individual.",
+        "icon": "🔄",
+        "label": "Rotativo — Super 8 / Rainha da Praia",
+        "desc": "Parceiras trocam a cada rodada seguindo matriz matemática perfeita. Pontuação individual acumulada.",
         "min": 4, "even": False,
     },
-    "🤝  Duplas Fixas — Pontos Corridos": {
+    "duplas_fixas": {
         "cls": DuplasFixas, "id": "duplas_fixas",
-        "desc": "Duplas fixas disputam um round-robin completo entre si.",
+        "icon": "🤝",
+        "label": "Duplas Fixas — Pontos Corridos",
+        "desc": "Duplas se formam uma vez e disputam todas entre si (round-robin). Vence a dupla com mais pontos.",
         "min": 4, "even": True,
     },
-    "⚔️  Mata-Mata — Chaveamento": {
+    "mata_mata": {
         "cls": MataMata, "id": "mata_mata",
-        "desc": "Árvore eliminatória interativa com avanço automático da vencedora.",
+        "icon": "⚔️",
+        "label": "Mata-Mata — Chaveamento",
+        "desc": "Eliminação direta. Perde, sai. Avanço automático no bracket com BYE para número ímpar.",
         "min": 2, "even": False,
     },
 }
 FORMAT_BY_ID = {v["id"]: v for v in FORMATS.values()}
+FORMAT_KEYS = list(FORMATS.keys())
 
-# Regras específicas por formato
+# Regras por formato (ícone, texto HTML)
 _FORMAT_RULES = {
     "rainha_da_praia": [
-        "🎾 Parceiras <b>rotacionam</b> a cada rodada",
-        "🏅 Melhor de <b>4 games</b> por partida",
-        "🔥 Empate 2×2 → <b>Super Tie-Break</b> (10 pts)",
-        "🏆 Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>",
-        "⚡ Super Tie: saldo computado como <b>3×2</b>",
-        "📊 Pontuação <b>individual</b> acumulada",
+        ("🔄", "Parceiras <b>rotacionam</b> a cada rodada — sem dupla fixa"),
+        ("🎾", "Set de <b>4 games</b> — vence quem chegar a <b>3 primeiro</b>"),
+        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🏆", "Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>"),
+        ("⚖️", "Desempate: Pontos → Saldo de games → Games pró → Alfabético"),
     ],
     "duplas_fixas": [
-        "🤝 Duplas <b>fixas</b> durante todo o torneio",
-        "🏅 Melhor de <b>4 games</b> por partida",
-        "🔥 Empate 2×2 → <b>Super Tie-Break</b> (10 pts)",
-        "🏆 Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>",
-        "⚡ Super Tie: saldo computado como <b>3×2</b>",
-        "📊 Round-robin completo entre <b>duplas</b>",
+        ("🤝", "Duplas <b>fixas</b> formadas antes do torneio"),
+        ("🎾", "Set de <b>4 games</b> — vence quem chegar a <b>3 primeiro</b>"),
+        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🏆", "Vitória = <b>3 pts</b>  ·  Derrota = <b>0 pts</b>"),
+        ("📊", "Round-robin: todas as duplas se enfrentam"),
     ],
     "mata_mata": [
-        "⚔️ <b>Eliminação direta</b> — perde, sai",
-        "🏅 Melhor de <b>4 games</b> por partida",
-        "🔥 Empate 2×2 → <b>Super Tie-Break</b> (10 pts)",
-        "🔄 <b>BYE automático</b> para número ímpar",
-        "🏆 Vencedora <b>avança automaticamente</b> no bracket",
+        ("⚔️", "<b>Eliminação direta</b> — perde, sai"),
+        ("🎾", "Set de <b>4 games</b> — vence quem chegar a <b>3 primeiro</b>"),
+        ("🔥", "Empate 2–2 → <b>Super Tie-Break</b> (primeiro a 10 pts, vantagem 2)"),
+        ("🔄", "<b>BYE automático</b> para número ímpar de participantes"),
+        ("🏆", "Vencedora avança automaticamente no bracket"),
     ],
 }
 
@@ -94,6 +100,10 @@ def _restore_tournament():
             except Exception:
                 pass
     st.session_state["tournament"] = None
+
+
+def _fmt_key_from_id(fmt_id: str) -> str:
+    return fmt_id  # keys are now the same as IDs
 
 
 def _persist():
@@ -239,12 +249,9 @@ def render_player():
     # Top bar
     c1, c2 = st.columns([6, 1])
     with c1:
-        st.markdown(f'<div style="padding:.6rem 0">'
-                    f'<span class="bf-badge">👤 {name}</span>'
-                    f'<span style="font-size:.72rem;color:#c49070;margin-left:.8rem">'
-                    f'⟳ atualiza automaticamente</span></div>',
-                    unsafe_allow_html=True)
+        topbar(f"👤 {name}")
     with c2:
+        st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
         if st.button("Sair", use_container_width=True):
             _logout()
 
@@ -337,12 +344,11 @@ def _render_player_ranking(data: dict):
 # ─────────────────────────────────────────────
 
 def render_admin():
-    c1, c2 = st.columns([5, 1])
+    c1, c2 = st.columns([6, 1])
     with c1:
-        st.markdown('<div style="padding:.6rem 0">'
-                    '<span class="bf-badge">🔑 Administradora</span></div>',
-                    unsafe_allow_html=True)
+        topbar("🔑 Administradora")
     with c2:
+        st.markdown("<div style='height:1rem'></div>", unsafe_allow_html=True)
         if st.button("Sair", use_container_width=True):
             _logout()
 
@@ -428,51 +434,41 @@ def _tab_tournament():
 
 
 def _create_tournament_ui():
-    hero("Beach&Friends", "Placar & Chaveamento Inteligente")
-
     players_dict = st.session_state["data"].get("players", {})
     all_players = sorted(players_dict.keys())
 
-    # Guests session state
     if "tourn_guests" not in st.session_state:
         st.session_state["tourn_guests"] = []
+    if "tourn_fmt" not in st.session_state:
+        st.session_state["tourn_fmt"] = FORMAT_KEYS[0]
 
+    st.markdown("<div style='height:.2rem'></div>", unsafe_allow_html=True)
     col_l, col_r = st.columns([3, 2], gap="large")
 
     selected_players: list = []
 
+    # ── COLUNA ESQUERDA: jogadoras ──────────────
     with col_l:
-        section_label("👥  Jogadoras no Torneio")
+        section_label("👥  Participantes")
 
-        # ── Checkboxes em grade ─────────────────
         if all_players:
             ncols = 3 if len(all_players) >= 6 else 2
             grid = st.columns(ncols)
-            for i, name in enumerate(all_players):
+            for i, pname in enumerate(all_players):
                 with grid[i % ncols]:
-                    has_pin = bool(players_dict[name].get("pin_hash"))
+                    has_pin = bool(players_dict[pname].get("pin_hash"))
                     pin_icon = "🔒" if has_pin else "⚠️"
-                    checked = st.checkbox(
-                        f"{name}  {pin_icon}",
-                        value=True,
-                        key=f"chk_{name}",
-                    )
-                    if checked:
-                        selected_players.append(name)
+                    if st.checkbox(f"{pname} {pin_icon}", value=True, key=f"chk_{pname}"):
+                        selected_players.append(pname)
         else:
             st.markdown(
-                '<div style="font-size:.84rem;color:#c49070;padding:.6rem 0">'
-                'Nenhuma jogadora cadastrada. Use a aba <b>Jogadoras</b> '
+                '<div style="font-size:.82rem;color:#a07050;padding:.5rem 0">'
+                'Nenhuma cadastrada. Use a aba <b>Jogadoras</b> '
                 'ou adicione convidadas abaixo.</div>',
                 unsafe_allow_html=True,
             )
 
-        # ── Convidadas ──────────────────────────
-        st.markdown(
-            '<div style="font-size:.75rem;font-weight:700;letter-spacing:.06em;'
-            'color:#c49070;margin-top:.9rem;margin-bottom:.3rem">CONVIDADAS</div>',
-            unsafe_allow_html=True,
-        )
+        section_label("➕  Convidadas")
         gi1, gi2 = st.columns([5, 1])
         with gi1:
             guest_in = st.text_input(
@@ -491,8 +487,7 @@ def _create_tournament_ui():
             rc1, rc2 = st.columns([5, 1])
             with rc1:
                 st.markdown(
-                    f'<div style="font-size:.85rem;color:#1a1a1a;'
-                    f'padding:.25rem 0">👤 {g}</div>',
+                    f'<div style="font-size:.84rem;color:#1c1917;padding:.22rem 0">👤 {g}</div>',
                     unsafe_allow_html=True,
                 )
             with rc2:
@@ -500,54 +495,56 @@ def _create_tournament_ui():
                     st.session_state["tourn_guests"].remove(g)
                     st.rerun()
 
-        # ── Contador ───────────────────────────
         total_sel = len(selected_players) + len(st.session_state["tourn_guests"])
         ok_color = "#f97316" if total_sel >= 2 else "#dc2626"
         st.markdown(
-            f'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.7rem">'
+            f'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.65rem">'
             f'<div style="background:{ok_color};color:white;border-radius:20px;'
-            f'padding:.15rem .75rem;font-weight:800;font-size:.83rem">{total_sel}</div>'
-            f'<span style="font-size:.82rem;color:#92400e">'
+            f'padding:.15rem .75rem;font-weight:800;font-size:.82rem">{total_sel}</div>'
+            f'<span style="font-size:.8rem;color:#a07050">'
             f'participante{"s" if total_sel != 1 else ""} no torneio</span>'
             f'</div>',
             unsafe_allow_html=True,
         )
 
+    # ── COLUNA DIREITA: formato + regras ────────
     with col_r:
-        section_label("🏆  Formato do Torneio")
-        fmt_name = st.selectbox(
-            "formato", list(FORMATS.keys()),
-            label_visibility="collapsed",
-        )
-        fmt = FORMATS[fmt_name]
+        section_label("🏆  Formato")
 
-        st.markdown(
-            f'<div style="background:#fff7ed;border-left:4px solid #f97316;'
-            f'border-radius:12px;padding:.9rem 1.1rem;margin:.6rem 0;'
-            f'font-size:.83rem;color:#c2410c;font-weight:500">'
-            f'{fmt["desc"]}</div>',
-            unsafe_allow_html=True,
-        )
-        rules_html = "".join(f"{r}<br>" for r in _FORMAT_RULES.get(fmt["id"], []))
-        st.markdown(
-            f'<div style="background:#fef9f4;border:1.5px solid #f0d4b8;'
-            f'border-radius:12px;padding:.9rem 1.1rem;'
-            f'font-size:.8rem;color:#92400e;line-height:1.9">'
-            f'<b style="font-weight:800;font-size:.85rem">📋 Regras</b><br>{rules_html}</div>',
-            unsafe_allow_html=True,
-        )
+        for fid in FORMAT_KEYS:
+            fmt = FORMATS[fid]
+            selected_cls = " selected" if st.session_state["tourn_fmt"] == fid else ""
+            st.markdown(
+                f'<div class="bf-fmt-card{selected_cls}">'
+                f'<div class="bf-fmt-icon">{fmt["icon"]}</div>'
+                f'<div class="bf-fmt-name">{fmt["label"]}</div>'
+                f'<div class="bf-fmt-desc">{fmt["desc"]}</div>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+            if st.button(
+                "✓ Selecionado" if st.session_state["tourn_fmt"] == fid else "Selecionar",
+                key=f"selfmt_{fid}",
+                type="primary" if st.session_state["tourn_fmt"] == fid else "secondary",
+                use_container_width=True,
+            ):
+                st.session_state["tourn_fmt"] = fid
+                st.rerun()
+
+        st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+        render_rules_card(_FORMAT_RULES.get(st.session_state["tourn_fmt"], []))
 
     st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
     _, btn, _ = st.columns([2, 1, 2])
     with btn:
         if st.button("🏆  Criar Torneio", type="primary", use_container_width=True):
             all_selected = list(selected_players) + list(st.session_state["tourn_guests"])
-            _do_create(all_selected, fmt_name)
+            _do_create(all_selected, st.session_state["tourn_fmt"])
             st.session_state["tourn_guests"] = []
 
 
-def _do_create(players: list, fmt_name: str):
-    fmt = FORMATS[fmt_name]
+def _do_create(players: list, fmt_id: str):
+    fmt = FORMATS.get(fmt_id) or FORMATS[FORMAT_KEYS[0]]
     errors = []
     if len(players) < fmt["min"]:
         errors.append(f"Mínimo de {fmt['min']} participantes para este formato.")
