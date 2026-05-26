@@ -147,6 +147,7 @@ class RainhaDaPraia(BaseTournamentFormat):
             "current_round_idx": self.current_round_idx,
             "pcount": [[list(k), v] for k, v in self._pcount.items()],
             "tournament_date": self.tournament_date,
+            "tournament_label": getattr(self, "tournament_label", ""),
         }
 
     @classmethod
@@ -155,7 +156,8 @@ class RainhaDaPraia(BaseTournamentFormat):
         obj.players = d["players"]
         obj.player_stats = d["player_stats"]
         obj.current_round_idx = d["current_round_idx"]
-        obj.tournament_date = d.get("tournament_date", "")
+        obj.tournament_date  = d.get("tournament_date", "")
+        obj.tournament_label = d.get("tournament_label", "")
         obj._pcount = {tuple(item[0]): item[1] for item in d.get("pcount", [])}
         rounds = []
         for rnd in d["rounds"]:
@@ -288,8 +290,9 @@ class RainhaDaPraia(BaseTournamentFormat):
                 date_display = self.tournament_date
         date_part = f"  ·  {date_display}" if date_display else ""
 
+        display_name = getattr(self, "tournament_label", "").strip() or self.format_name
         exp_label = (
-            f"🎾  {self.format_name}{date_part}"
+            f"🎾  {display_name}{date_part}"
             f"  ·  {n} participantes  ·  {badge}"
         )
 

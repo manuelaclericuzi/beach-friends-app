@@ -488,6 +488,25 @@ def _register_in_ranking(t) -> None:
     _persist()
 
 
+def _deregister_from_ranking(t) -> None:
+    """Reverse this tournament's contribution to the accumulated ranking."""
+    data    = st.session_state["data"]
+    ranking = data.get("ranking", {})
+    for player, stats in _extract_standings(t).items():
+        if player not in ranking:
+            continue
+        r = ranking[player]
+        r["tournaments"]  = max(0, r.get("tournaments", 0)  - 1)
+        r["matches"]      = max(0, r.get("matches", 0)      - stats.get("matches", 0))
+        r["wins"]         = max(0, r.get("wins", 0)         - stats.get("wins", 0))
+        r["points"]       = max(0, r.get("points", 0)       - stats.get("points", 0))
+        r["game_balance"] = r.get("game_balance", 0) - stats.get("game_balance", 0)
+        # Remove entry if player has no remaining data
+        if r.get("tournaments", 0) <= 0 and r.get("matches", 0) <= 0:
+            del ranking[player]
+    _persist()
+
+
 def _archive_tournament_with_meta(t, name: str, location: str, date_str: str) -> None:
     data    = st.session_state["data"]
     history = data.setdefault("tournament_history", [])
@@ -795,6 +814,155 @@ def _render_history_detail(h: dict, can_edit: bool):
 
 
 # ─────────────────────────────────────────────
+#  Tournament edit / delete helpers
+# ─────────────────────────────────────────────
+
+def _render_edit_tourn(t):
+    """Inline edit panel for tournament metadata (date, display name)."""
+    st.markdown(
+        '<div style="background:linear-gradient(135deg,#1a1613,#2c2420);'
+        'border-radius:16px;padding:.85rem 1.3rem;margin-bottom:1rem">'
+        '<div style="color:rgba(255,255,255,.5);font-size:.7rem">Editar torneio</div>'
+        '<div style="color:#fff;font-weight:800;font-size:1rem">'
+        f'{getattr(t, "format_name", t.format_id)}</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    col_form, col_info = st.columns([3, 2], gap="large")
+
+    with col_form:
+        with st.container(border=True):
+            section_label("📝 Dados do Torneio")
+
+            field_label("Data do Torneio")
+            _cur_date = dt_date.today()
+            if getattr(t, "tournament_date", ""):
+                try:
+                    _cur_date = dt_date.fromisoformat(t.tournament_date)
+                except Exception:
+                    pass
+            new_date = st.date_input(
+                "edit_date_in", value=_cur_date,
+                label_visibility="collapsed", key="edit_tourn_date",
+                format="DD/MM/YYYY",
+            )
+
+            field_label("Nome / Apelido (opcional)")
+            cur_label = getattr(t, "tournament_label", "")
+            new_label = st.text_input(
+                "edit_label_in",
+                value=st.session_state.get("edit_tourn_label", cur_label),
+                placeholder="Ex: Torneio do Aniversário",
+                label_visibility="collapsed", key="edit_tourn_label",
+            )
+
+            st.markdown(
+                '<div style="font-size:.75rem;color:#c49070;padding:.6rem .8rem;'
+                'background:#fff9f2;border-radius:10px;margin-top:.5rem">'
+                'O nome/apelido é exibido apenas no banner do torneio ativo.</div>',
+                unsafe_allow_html=True,
+            )
+
+            st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
+            ca, cb = st.columns(2)
+            with ca:
+                if st.button("💾  Salvar alterações", type="primary",
+                             use_container_width=True):
+                    t.tournament_date  = str(new_date)
+                    t.tournament_label = new_label.strip()
+                    for k in ("show_edit_tourn", "edit_tourn_date", "edit_tourn_label"):
+                        st.session_state.pop(k, None)
+                    _persist()
+                    st.rerun()
+            with cb:
+                if st.button("← Cancelar", use_container_width=True):
+                    for k in ("show_edit_tourn", "edit_tourn_date", "edit_tourn_label"):
+                        st.session_state.pop(k, None)
+                    st.rerun()
+
+    with col_info:
+        section_label("ℹ️ O que pode ser editado")
+        st.markdown(
+            '<div style="font-size:.82rem;color:#9b8679;line-height:1.7">'
+            '📅 <b>Data</b> — corrige a data exibida no banner e no histórico<br>'
+            '🏷️ <b>Apelido</b> — nome personalizado exibido no banner<br><br>'
+            '<span style="color:#c49070;font-size:.78rem">'
+            'Para alterar participantes ou formato, encerre este torneio '
+            'e crie um novo.</span>'
+            '</div>',
+            unsafe_allow_html=True,
+        )
+
+
+def _render_delete_tourn(t):
+    """Confirmation dialog for deleting the active tournament."""
+    # Check if tournament has any completed rounds
+    rounds = getattr(t, "rounds", [])
+    has_results = any(r.get("completed") for r in rounds)
+
+    st.markdown(
+        '<div style="background:#fef2f2;border:1.5px solid #fca5a5;'
+        'border-radius:16px;padding:1.1rem 1.3rem;margin-bottom:1rem">'
+        '<div style="font-weight:900;color:#dc2626;font-size:1rem;'
+        'margin-bottom:.4rem">🗑️ Apagar torneio?</div>'
+        '<div style="font-size:.85rem;color:#7f1d1d;line-height:1.6">'
+        'Esta ação é <b>irreversível</b>. Todos os resultados e rodadas '
+        'serão <b>permanentemente apagados</b>.</div>'
+        '</div>',
+        unsafe_allow_html=True,
+    )
+
+    col_opts, col_btns = st.columns([3, 2], gap="large")
+
+    with col_opts:
+        with st.container(border=True):
+            section_label("⚙️ Opções")
+            also_ranking = st.checkbox(
+                "Remover também do **Ranking Geral**",
+                value=True,
+                key="del_also_ranking",
+                help=(
+                    "Remove as pontuações deste torneio do ranking acumulado. "
+                    "Marque se os resultados já foram registrados no ranking."
+                    if has_results else
+                    "Nenhuma rodada concluída — o ranking não foi afetado."
+                ),
+                disabled=not has_results,
+            )
+            if has_results:
+                st.markdown(
+                    '<div style="font-size:.75rem;color:#9b8679;margin-top:.2rem">'
+                    '⚠️ Este torneio tem rodadas concluídas. Se você clicou em '
+                    '"Registrar no Ranking", marque esta opção para desfazer.</div>',
+                    unsafe_allow_html=True,
+                )
+            else:
+                st.markdown(
+                    '<div style="font-size:.75rem;color:#16a34a;margin-top:.2rem">'
+                    '✅ Nenhuma rodada concluída — o ranking não será afetado.</div>',
+                    unsafe_allow_html=True,
+                )
+
+    with col_btns:
+        st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+        if st.button("🗑️  Confirmar exclusão", type="primary",
+                     use_container_width=True, key="yes_del_tourn"):
+            if has_results and also_ranking:
+                _deregister_from_ranking(t)
+            st.session_state["tournament"] = None
+            st.session_state["data"]["tournament"] = None
+            st.session_state.pop("confirm_delete_tourn", None)
+            st.session_state.pop("del_also_ranking", None)
+            _persist()
+            st.rerun()
+        st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
+        if st.button("← Cancelar", use_container_width=True, key="no_del_tourn"):
+            st.session_state.pop("confirm_delete_tourn", None)
+            st.rerun()
+
+
+# ─────────────────────────────────────────────
 #  Tournament tab
 # ─────────────────────────────────────────────
 
@@ -805,35 +973,15 @@ def _tab_tournament():
     if t is not None:
         if st.session_state.get("show_archive_form"):
             _render_archive_form(t)
+
+        elif st.session_state.get("show_edit_tourn"):
+            _render_edit_tourn(t)
+
         elif st.session_state.get("confirm_delete_tourn"):
-            # ── Confirmation dialog ────────────────────
-            st.markdown(
-                '<div style="background:#fef2f2;border:1.5px solid #fca5a5;'
-                'border-radius:14px;padding:1rem 1.2rem;margin-bottom:.8rem">'
-                '<div style="font-weight:800;color:#dc2626;font-size:.95rem;'
-                'margin-bottom:.3rem">⚠️ Apagar torneio?</div>'
-                '<div style="font-size:.83rem;color:#7f1d1d">'
-                'Esta ação é <b>irreversível</b>. Todos os resultados e rodadas '
-                'serão perdidos. O ranking acumulado <b>não</b> será afetado.</div>'
-                '</div>',
-                unsafe_allow_html=True,
-            )
-            cy, cn = st.columns(2)
-            with cy:
-                if st.button("✅ Sim, apagar torneio", type="primary",
-                             use_container_width=True, key="yes_del_tourn"):
-                    st.session_state["tournament"] = None
-                    st.session_state["data"]["tournament"] = None
-                    st.session_state.pop("confirm_delete_tourn", None)
-                    _persist()
-                    st.rerun()
-            with cn:
-                if st.button("← Cancelar", use_container_width=True,
-                             key="no_del_tourn"):
-                    st.session_state.pop("confirm_delete_tourn", None)
-                    st.rerun()
+            _render_delete_tourn(t)
+
         else:
-            _, c1, c2, c3 = st.columns([2.5, 2, 1.8, 1.2])
+            _sp, c1, c2, c3, c4 = st.columns([1.5, 2.2, 1.9, 1.3, 1.1])
             with c1:
                 if st.button("📊  Registrar no Ranking", use_container_width=True):
                     _register_in_ranking(t)
@@ -843,8 +991,13 @@ def _tab_tournament():
                     st.session_state["show_archive_form"] = True
                     st.rerun()
             with c3:
+                if st.button("✏️  Editar", use_container_width=True,
+                             help="Editar data e nome do torneio"):
+                    st.session_state["show_edit_tourn"] = True
+                    st.rerun()
+            with c4:
                 if st.button("🗑️  Apagar", use_container_width=True,
-                             help="Apaga o torneio sem salvar no histórico"):
+                             help="Apagar torneio permanentemente"):
                     st.session_state["confirm_delete_tourn"] = True
                     st.rerun()
             t.render(can_edit=True)

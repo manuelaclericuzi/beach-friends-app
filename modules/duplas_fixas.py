@@ -79,6 +79,7 @@ class DuplasFixas(BaseTournamentFormat):
             "current_round_idx": self.current_round_idx,
             "suggested": [list(p) for p in self._suggested],
             "tournament_date": self.tournament_date,
+            "tournament_label": getattr(self, "tournament_label", ""),
         }
 
     @classmethod
@@ -89,7 +90,8 @@ class DuplasFixas(BaseTournamentFormat):
         obj.teams = d["teams"]
         obj.team_stats = d["team_stats"]
         obj.current_round_idx = d["current_round_idx"]
-        obj.tournament_date = d.get("tournament_date", "")
+        obj.tournament_date  = d.get("tournament_date", "")
+        obj.tournament_label = d.get("tournament_label", "")
         obj._suggested = [tuple(p) for p in d.get("suggested", [])]
         rounds = []
         for rnd in d["rounds"]:
@@ -229,8 +231,9 @@ class DuplasFixas(BaseTournamentFormat):
                 date_display = self.tournament_date
         date_part = f"  ·  {date_display}" if date_display else ""
 
+        display_name = getattr(self, "tournament_label", "").strip() or self.format_name
         exp_label = (
-            f"🎾  {self.format_name}{date_part}"
+            f"🎾  {display_name}{date_part}"
             f"  ·  {n} participantes  ·  {badge}"
         )
 
