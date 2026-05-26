@@ -7,9 +7,9 @@ st.set_page_config(
     initial_sidebar_state="collapsed",
 )
 
-from modules.ui_components import (apply_custom_css, logo_header, hero, topbar,
+from modules.ui_components import (apply_custom_css, login_header, hero, topbar,
                                     field_label, section_label, render_ranking_section,
-                                    render_rules_card)
+                                    render_rules_card, render_format_info)
 from modules.auth import hash_pin, verify, DEFAULT_ADMIN_PASSWORD
 from modules import persistence
 from modules.rainha_da_praia import RainhaDaPraia
@@ -129,22 +129,27 @@ def render_login():
     players_dict: dict = st.session_state["data"].get("players", {})
     player_names = sorted(players_dict.keys())
 
-    # Three-column centering
-    _, col, _ = st.columns([1, 1.4, 1])
+    st.markdown("<div style='height:3vh'></div>", unsafe_allow_html=True)
+    _, col, _ = st.columns([1, 1.5, 1])
     with col:
         with st.container(border=True):
-            st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
-            logo_header("Beach&Friends", "Placar & Chaveamento Inteligente")
+            login_header()
 
-            field_label("Quem é você?")
-            role_sel = st.selectbox(
-                "role", ["Jogadora do Torneio", "Administradora"],
-                label_visibility="collapsed", key="login_role",
+            # Role — radio horizontal
+            field_label("Tipo de acesso")
+            role_sel = st.radio(
+                "role",
+                ["🎾  Jogadora", "🔑  Administradora"],
+                horizontal=True,
+                label_visibility="collapsed",
+                key="login_role",
             )
+            is_admin = "Admin" in role_sel
 
             player_sel = None
             is_first = False
-            if role_sel == "Jogadora do Torneio":
+
+            if not is_admin:
                 field_label("Escolha seu nome")
                 if player_names:
                     player_sel = st.selectbox(
@@ -154,32 +159,33 @@ def render_login():
                     is_first = not players_dict[player_sel].get("pin_hash")
                     if is_first:
                         st.markdown(
-                            '<div class="bf-hint">✨ Primeiro acesso! '
-                            'Crie abaixo seu <b>PIN de 4+ dígitos</b>.</div>',
+                            '<div class="bf-hint">✨ Primeiro acesso — crie seu <b>PIN de 4+ dígitos</b>.</div>',
                             unsafe_allow_html=True,
                         )
                 else:
-                    st.info("Nenhuma jogadora cadastrada ainda.")
+                    st.warning("Nenhuma jogadora cadastrada ainda.")
                     st.stop()
 
-            field_label("Criar PIN" if is_first else "PIN de Acesso")
+            field_label("Criar PIN" if is_first else ("Senha" if is_admin else "PIN"))
             pin_input = st.text_input(
                 "pin",
-                placeholder="🔒  Digite sua senha ou PIN",
+                placeholder="••••••••",
                 type="password",
                 label_visibility="collapsed",
                 key="login_pin",
             )
 
-            st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
             enter = st.button(
-                "Entrar no Torneio  →",
-                type="primary", use_container_width=True,
+                "Entrar  →",
+                type="primary", use_container_width=True, key="btn_login",
             )
-            st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+            st.markdown("<div style='height:.2rem'></div>", unsafe_allow_html=True)
 
+    # resolve role string back to old convention for _handle_login
+    role_legacy = "Administradora" if is_admin else "Jogadora do Torneio"
     if enter:
-        _handle_login(role_sel, player_sel, pin_input, players_dict, is_first)
+        _handle_login(role_legacy, player_sel, pin_input, players_dict, is_first)
 
 
 def _handle_login(role_sel, player_sel, pin, players_dict, is_first):
@@ -439,44 +445,42 @@ def _create_tournament_ui():
 
     if "tourn_guests" not in st.session_state:
         st.session_state["tourn_guests"] = []
-    if "tourn_fmt" not in st.session_state:
-        st.session_state["tourn_fmt"] = FORMAT_KEYS[0]
 
-    st.markdown("<div style='height:.2rem'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
     col_l, col_r = st.columns([3, 2], gap="large")
 
-    selected_players: list = []
-
-    # ── COLUNA ESQUERDA: jogadoras ──────────────
+    # ── COLUNA ESQUERDA ─────────────────────────
     with col_l:
         section_label("👥  Participantes")
 
+        # Multiselect principal (tags visuais)
         if all_players:
-            ncols = 3 if len(all_players) >= 6 else 2
-            grid = st.columns(ncols)
-            for i, pname in enumerate(all_players):
-                with grid[i % ncols]:
-                    has_pin = bool(players_dict[pname].get("pin_hash"))
-                    pin_icon = "🔒" if has_pin else "⚠️"
-                    if st.checkbox(f"{pname} {pin_icon}", value=True, key=f"chk_{pname}"):
-                        selected_players.append(pname)
+            selected_players = st.multiselect(
+                "Participantes",
+                options=all_players,
+                default=all_players,
+                placeholder="Selecione as participantes...",
+                label_visibility="collapsed",
+                key="tourn_ms",
+            )
         else:
+            selected_players = []
             st.markdown(
-                '<div style="font-size:.82rem;color:#a07050;padding:.5rem 0">'
-                'Nenhuma cadastrada. Use a aba <b>Jogadoras</b> '
-                'ou adicione convidadas abaixo.</div>',
+                '<div style="font-size:.82rem;color:#9b8679;padding:.4rem 0">'
+                'Nenhuma cadastrada. Use <b>Jogadoras</b> ou adicione convidadas abaixo.</div>',
                 unsafe_allow_html=True,
             )
 
-        section_label("➕  Convidadas")
+        # Convidadas inline
+        section_label("➕  Adicionar convidada")
         gi1, gi2 = st.columns([5, 1])
         with gi1:
             guest_in = st.text_input(
-                "g", placeholder="Nome da convidada...",
-                label_visibility="collapsed", key="guest_name_field",
+                "g", placeholder="Ex: Rafaela...",
+                label_visibility="collapsed", key="guest_in",
             )
         with gi2:
-            if st.button("➕", use_container_width=True, key="btn_add_guest"):
+            if st.button("➕", key="btn_guest", use_container_width=True):
                 g = guest_in.strip()
                 existing = {x.lower() for x in all_players + st.session_state["tourn_guests"]}
                 if g and g.lower() not in existing:
@@ -484,62 +488,53 @@ def _create_tournament_ui():
                     st.rerun()
 
         for g in list(st.session_state["tourn_guests"]):
-            rc1, rc2 = st.columns([5, 1])
-            with rc1:
+            c1, c2 = st.columns([6, 1])
+            with c1:
                 st.markdown(
-                    f'<div style="font-size:.84rem;color:#1c1917;padding:.22rem 0">👤 {g}</div>',
+                    f'<div style="font-size:.84rem;padding:.2rem 0;color:#1a1613">👤 <b>{g}</b></div>',
                     unsafe_allow_html=True,
                 )
-            with rc2:
-                if st.button("✕", key=f"rm_g_{g}"):
+            with c2:
+                if st.button("✕", key=f"rmg_{g}"):
                     st.session_state["tourn_guests"].remove(g)
                     st.rerun()
 
-        total_sel = len(selected_players) + len(st.session_state["tourn_guests"])
-        ok_color = "#f97316" if total_sel >= 2 else "#dc2626"
+        # Contador
+        total = len(selected_players) + len(st.session_state["tourn_guests"])
+        col = "#f97316" if total >= 2 else "#dc2626"
         st.markdown(
-            f'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.65rem">'
-            f'<div style="background:{ok_color};color:white;border-radius:20px;'
-            f'padding:.15rem .75rem;font-weight:800;font-size:.82rem">{total_sel}</div>'
-            f'<span style="font-size:.8rem;color:#a07050">'
-            f'participante{"s" if total_sel != 1 else ""} no torneio</span>'
-            f'</div>',
+            f'<div style="display:inline-flex;align-items:center;gap:.5rem;'
+            f'background:{col}1a;border:1.5px solid {col}55;border-radius:100px;'
+            f'padding:.3rem .9rem;margin-top:.5rem">'
+            f'<span style="font-size:1rem;font-weight:900;color:{col}">{total}</span>'
+            f'<span style="font-size:.78rem;font-weight:600;color:#3a2e26">'
+            f'participante{"s" if total!=1 else ""}</span></div>',
             unsafe_allow_html=True,
         )
 
-    # ── COLUNA DIREITA: formato + regras ────────
+    # ── COLUNA DIREITA ──────────────────────────
     with col_r:
         section_label("🏆  Formato")
 
-        for fid in FORMAT_KEYS:
-            fmt = FORMATS[fid]
-            selected_cls = " selected" if st.session_state["tourn_fmt"] == fid else ""
-            st.markdown(
-                f'<div class="bf-fmt-card{selected_cls}">'
-                f'<div class="bf-fmt-icon">{fmt["icon"]}</div>'
-                f'<div class="bf-fmt-name">{fmt["label"]}</div>'
-                f'<div class="bf-fmt-desc">{fmt["desc"]}</div>'
-                f'</div>',
-                unsafe_allow_html=True,
-            )
-            if st.button(
-                "✓ Selecionado" if st.session_state["tourn_fmt"] == fid else "Selecionar",
-                key=f"selfmt_{fid}",
-                type="primary" if st.session_state["tourn_fmt"] == fid else "secondary",
-                use_container_width=True,
-            ):
-                st.session_state["tourn_fmt"] = fid
-                st.rerun()
+        fmt_labels = [f"{FORMATS[k]['icon']}  {FORMATS[k]['label']}" for k in FORMAT_KEYS]
+        fmt_sel = st.radio(
+            "fmt", fmt_labels,
+            label_visibility="collapsed", key="tourn_fmt_radio",
+        )
+        fmt_idx = fmt_labels.index(fmt_sel)
+        fmt_id = FORMAT_KEYS[fmt_idx]
+        fmt = FORMATS[fmt_id]
 
+        render_format_info(fmt["icon"], fmt["label"], fmt["desc"])
         st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
-        render_rules_card(_FORMAT_RULES.get(st.session_state["tourn_fmt"], []))
+        render_rules_card(_FORMAT_RULES.get(fmt_id, []))
 
-    st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
-    _, btn, _ = st.columns([2, 1, 2])
-    with btn:
+    st.markdown("<div style='height:.9rem'></div>", unsafe_allow_html=True)
+    _, btn_col, _ = st.columns([1.5, 2, 1.5])
+    with btn_col:
         if st.button("🏆  Criar Torneio", type="primary", use_container_width=True):
             all_selected = list(selected_players) + list(st.session_state["tourn_guests"])
-            _do_create(all_selected, st.session_state["tourn_fmt"])
+            _do_create(all_selected, fmt_id)
             st.session_state["tourn_guests"] = []
 
 
