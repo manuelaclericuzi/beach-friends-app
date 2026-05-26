@@ -203,6 +203,19 @@ label[data-testid="stWidgetLabel"] > div > p {
 
 /* ── Expander ── */
 details { background: #fff !important; border: 1.5px solid #edddd0 !important; border-radius: 14px !important; }
+
+/* ── Container (border=True) accent left border ── */
+[data-testid="stVerticalBlockBorderWrapper"] {
+    position: relative !important;
+}
+/* First container on page gets orange left strip via pseudo-element would require JS;
+   instead we add a subtle top-border highlight */
+[data-testid="stVerticalBlockBorderWrapper"]:hover {
+    box-shadow: 0 4px 20px rgba(0,0,0,.10), 0 8px 28px rgba(0,0,0,.08) !important;
+}
+
+/* ── Spacing helpers ── */
+.block-container { padding-top: 1.2rem !important; padding-bottom: 2rem !important; }
 </style>
 """
 

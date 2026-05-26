@@ -238,6 +238,33 @@ class RainhaDaPraia(BaseTournamentFormat):
         rnd["completed"] = False
         self.current_round_idx = idx
 
+    def delete_round(self, idx: int):
+        """Remove a round entirely, reversing stats if it was completed."""
+        if idx < 0 or idx >= len(self.rounds):
+            return
+        rnd = self.rounds[idx]
+        if rnd["completed"]:
+            for m in rnd["matches"]:
+                if m["result"]:
+                    self._unapply(m["team_a"], m["team_b"], m["result"])
+        # Decrement partnership counter for this round's matches
+        for m in rnd["matches"]:
+            for team in (m["team_a"], m["team_b"]):
+                k = tuple(sorted(team))
+                if k in self._pcount:
+                    self._pcount[k] = max(0, self._pcount[k] - 1)
+        self.rounds.pop(idx)
+        # Renumber remaining rounds
+        for i, r in enumerate(self.rounds):
+            r["number"] = i + 1
+        # Adjust current_round_idx
+        if not self.rounds:
+            self.current_round_idx = 0
+        elif self.current_round_idx >= len(self.rounds):
+            self.current_round_idx = max(0, len(self.rounds) - 1)
+        elif self.current_round_idx > idx:
+            self.current_round_idx -= 1
+
     # ── render ───────────────────────────────────
 
     def render(self, can_edit: bool = False) -> None:
@@ -276,32 +303,84 @@ class RainhaDaPraia(BaseTournamentFormat):
         if rnd["completed"]:
             round_done_banner()
             if can_edit:
-                c1, c2, c3 = st.columns([2, 1.2, 1.2])
-                with c1:
-                    if st.button("▶ Próxima Rodada", type="primary", use_container_width=True):
-                        self.current_round_idx += 1
-                        _save()
-                        st.rerun()
-                with c2:
-                    if st.button("✏️ Corrigir", use_container_width=True,
-                                 help="Reabre a rodada para corrigir resultados"):
-                        self.uncomplete_round(idx)
-                        _save()
-                        st.rerun()
-                with c3:
-                    if st.button("➕ Extra", use_container_width=True):
-                        self.add_round()
-                        self.current_round_idx += 1
-                        _save()
-                        st.rerun()
+                del_key = f"del_rnd_rp_{idx}"
+                if st.session_state.get(del_key):
+                    st.warning(
+                        f"⚠️ Apagar **Rodada {rnd['number']}**? "
+                        "Os resultados serão revertidos do ranking."
+                    )
+                    cy, cn = st.columns(2)
+                    with cy:
+                        if st.button("✅ Confirmar exclusão", key=f"yes_del_rp_{idx}",
+                                     type="primary", use_container_width=True):
+                            st.session_state.pop(del_key, None)
+                            self.delete_round(idx)
+                            _save()
+                            st.rerun()
+                    with cn:
+                        if st.button("❌ Cancelar", key=f"no_del_rp_{idx}",
+                                     use_container_width=True):
+                            st.session_state.pop(del_key, None)
+                            st.rerun()
+                else:
+                    c1, c2, c3, c4 = st.columns([2, 1, 1, 1])
+                    with c1:
+                        if st.button("▶ Próxima Rodada", type="primary",
+                                     use_container_width=True):
+                            self.current_round_idx += 1
+                            _save()
+                            st.rerun()
+                    with c2:
+                        if st.button("✏️ Corrigir", use_container_width=True,
+                                     help="Reabre a rodada para corrigir resultados"):
+                            self.uncomplete_round(idx)
+                            _save()
+                            st.rerun()
+                    with c3:
+                        if st.button("➕ Extra", use_container_width=True):
+                            self.add_round()
+                            self.current_round_idx += 1
+                            _save()
+                            st.rerun()
+                    with c4:
+                        if st.button("🗑️ Apagar", use_container_width=True,
+                                     help="Remove esta rodada e reverte os resultados"):
+                            st.session_state[del_key] = True
+                            st.rerun()
             return
 
         if not can_edit:
             _render_round_readonly(rnd)
             return
 
+        del_p_key = f"del_pending_rp_{idx}"
+        # Delete option for pending (not-yet-completed) rounds
+        if can_edit and st.session_state.get(del_p_key):
+            st.warning(f"⚠️ Apagar **Rodada {rnd['number']}** (sem resultados)?")
+            cy, cn = st.columns(2)
+            with cy:
+                if st.button("✅ Confirmar exclusão", key=f"yes_delp_rp_{idx}",
+                             type="primary", use_container_width=True):
+                    st.session_state.pop(del_p_key, None)
+                    self.delete_round(idx)
+                    _save()
+                    st.rerun()
+            with cn:
+                if st.button("❌ Cancelar", key=f"no_delp_rp_{idx}",
+                             use_container_width=True):
+                    st.session_state.pop(del_p_key, None)
+                    st.rerun()
+            return
+
         _render_score_form(f"rp_{idx}", rnd["matches"],
                            lambda scores: self._on_submit(idx, scores))
+
+        if can_edit:
+            st.markdown("<div style='height:.3rem'></div>", unsafe_allow_html=True)
+            if st.button("🗑️ Apagar esta rodada", key=f"delbtn_rp_{idx}",
+                         help="Remove a rodada sem registrar resultados"):
+                st.session_state[del_p_key] = True
+                st.rerun()
 
     def _on_submit(self, idx, scores):
         self.submit_round(idx, scores)

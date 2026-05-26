@@ -139,6 +139,7 @@ def default_data() -> Dict:
         "players": {},
         "tournament": None,
         "ranking": {},
+        "tournament_history": [],
     }
 
 
