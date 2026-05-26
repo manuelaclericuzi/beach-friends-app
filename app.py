@@ -283,24 +283,61 @@ def _tab_tournament():
 
 def _create_tournament_ui():
     hero("Beach&Friends", "Placar & Chaveamento Inteligente")
-    st.markdown("---")
 
     players_dict = st.session_state["data"].get("players", {})
     all_players = sorted(players_dict.keys())
 
     col_l, col_r = st.columns([3, 2], gap="large")
 
+    selected_players: list = []
+    extra_raw = ""
+
     with col_l:
-        section_label("Jogadoras do Torneio")
-        default_txt = "\n".join(all_players)
-        players_raw = st.text_area(
-            "jogadoras", default_txt,
-            placeholder="Uma jogadora por linha:\nAna\nBia\nCarol\nDani",
-            height=220, label_visibility="collapsed",
-        )
+        section_label("👥  Jogadoras no Torneio")
+
+        if not all_players:
+            st.markdown(
+                '<div style="background:#fff7ed;border:2px dashed #f97316;'
+                'border-radius:14px;padding:1.4rem;text-align:center;'
+                'font-size:.88rem;color:#c2410c;line-height:1.8">'
+                '⚠️  Nenhuma jogadora cadastrada.<br>'
+                '<b>Vá até a aba Jogadoras para adicionar.</b></div>',
+                unsafe_allow_html=True,
+            )
+        else:
+            selected_players = st.multiselect(
+                "Participantes",
+                options=all_players,
+                default=all_players,
+                placeholder="Escolha as participantes...",
+                label_visibility="collapsed",
+                key="tourn_players",
+            )
+
+            n = len(selected_players)
+            ok_color = "#f97316" if n >= 4 else "#dc2626"
+            st.markdown(
+                f'<div style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0 .5rem">'
+                f'<div style="background:{ok_color};color:white;border-radius:20px;'
+                f'padding:.15rem .75rem;font-weight:800;font-size:.83rem">{n}</div>'
+                f'<span style="font-size:.82rem;color:#92400e">'
+                f'jogadora{"s" if n != 1 else ""} selecionada{"s" if n != 1 else ""}</span>'
+                f'</div>',
+                unsafe_allow_html=True,
+            )
+
+        with st.expander("➕  Adicionar jogadora avulsa (visitante)"):
+            st.caption("Não precisa de cadastro — participará apenas deste torneio.")
+            extra_raw = st.text_area(
+                "extra",
+                placeholder="Uma por linha:\nEx: Visitante\nEx: Convidada",
+                height=90,
+                label_visibility="collapsed",
+                key="tourn_extra",
+            )
 
     with col_r:
-        section_label("Formato do Torneio")
+        section_label("🏆  Formato do Torneio")
         fmt_name = st.selectbox(
             "formato", list(FORMATS.keys()),
             label_visibility="collapsed",
@@ -317,28 +354,28 @@ def _create_tournament_ui():
         st.markdown(
             '<div style="background:#fef9f4;border:1.5px solid #f0d4b8;'
             'border-radius:12px;padding:.9rem 1.1rem;'
-            'font-size:.8rem;color:#92400e;line-height:1.7">'
+            'font-size:.8rem;color:#92400e;line-height:1.8">'
             '<b style="font-weight:800">📋 Regras</b><br>'
-            '• Melhor de 4 games<br>'
-            '• Empate 2×2 → Super Tie-Break de 10 pts<br>'
-            '• Vitória = <b>3 pts</b> · Derrota = <b>0 pts</b><br>'
-            '• Super Tie: saldo computado como <b>3×2</b></div>',
+            '🎾 Melhor de 4 games<br>'
+            '🔥 Empate 2×2 → Super Tie-Break (10 pts)<br>'
+            '🏅 Vitória = <b>3 pts</b> · Derrota = <b>0 pts</b><br>'
+            '⚡ Super Tie: saldo computado como <b>3×2</b></div>',
             unsafe_allow_html=True,
         )
 
-    st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
+    st.markdown("<div style='height:.8rem'></div>", unsafe_allow_html=True)
     _, btn, _ = st.columns([2, 1, 2])
     with btn:
         if st.button("🏆  Criar Torneio", type="primary", use_container_width=True):
-            _do_create(players_raw, fmt_name)
+            extra_players = [p.strip() for p in extra_raw.splitlines() if p.strip()]
+            _do_create(list(selected_players) + extra_players, fmt_name)
 
 
-def _do_create(players_raw, fmt_name):
+def _do_create(players: list, fmt_name: str):
     fmt = FORMATS[fmt_name]
-    players = [p.strip() for p in players_raw.strip().splitlines() if p.strip()]
     errors = []
     if len(players) < fmt["min"]:
-        errors.append(f"Mínimo de {fmt['min']} participantes.")
+        errors.append(f"Mínimo de {fmt['min']} participantes para este formato.")
     if fmt["even"] and len(players) % 2 != 0:
         errors.append("Este formato exige número par de jogadoras.")
     if len(players) != len({p.lower() for p in players}):
@@ -361,54 +398,112 @@ def _tab_players():
     data = st.session_state["data"]
     players: dict = data.setdefault("players", {})
 
-    section_label("Jogadoras Cadastradas")
+    # ── Header com contador ──────────────────
+    h1, h2 = st.columns([5, 1])
+    with h1:
+        section_label("Jogadoras Cadastradas")
+    with h2:
+        n_total = len(players)
+        st.markdown(
+            f'<div style="background:#f97316;color:white;border-radius:20px;'
+            f'padding:.2rem .9rem;text-align:center;font-weight:800;'
+            f'font-size:.95rem;margin-top:.25rem">{n_total}</div>',
+            unsafe_allow_html=True,
+        )
 
     if not players:
-        st.info("Nenhuma jogadora ainda. Adicione abaixo.")
+        st.markdown(
+            '<div style="text-align:center;padding:2.5rem 1rem;color:#c49070;font-size:.9rem">'
+            '🏖️  Nenhuma jogadora cadastrada ainda.<br>'
+            '<span style="font-size:.8rem">Adicione abaixo para começar.</span></div>',
+            unsafe_allow_html=True,
+        )
     else:
-        for name, info in sorted(players.items()):
-            c1, c2, c3 = st.columns([4, 2, 1])
-            with c1:
-                st.markdown(
-                    f'<div style="font-weight:700;font-size:.9rem;'
-                    f'padding:.5rem 0">{name}</div>',
-                    unsafe_allow_html=True,
-                )
-            with c2:
-                has_pin = bool(info.get("pin_hash"))
-                cls = "bf-pin-ok" if has_pin else "bf-pin-no"
-                lbl = "🔒 PIN definido" if has_pin else "⚠️ Sem PIN"
-                st.markdown(
-                    f'<div class="{cls}" style="padding:.5rem 0">{lbl}</div>',
-                    unsafe_allow_html=True,
-                )
-            with c3:
-                if st.button("✕", key=f"del_{name}"):
-                    del players[name]
-                    _persist()
-                    st.rerun()
+        # Grid 2 colunas de cards
+        player_list = sorted(players.items())
+        for i in range(0, len(player_list), 2):
+            cols = st.columns(2, gap="small")
+            for j, (name, info) in enumerate(player_list[i : i + 2]):
+                with cols[j]:
+                    has_pin = bool(info.get("pin_hash"))
+                    with st.container(border=True):
+                        top1, top2 = st.columns([3, 1])
+                        with top1:
+                            badge = (
+                                '🔒 <span style="color:#16a34a;font-size:.73rem">PIN definido</span>'
+                                if has_pin else
+                                '⚠️ <span style="color:#dc2626;font-size:.73rem">Sem PIN</span>'
+                            )
+                            st.markdown(
+                                f'<div style="font-weight:700;font-size:.92rem;color:#1a1a1a">'
+                                f'{name}</div>'
+                                f'<div style="margin-top:.15rem">{badge}</div>',
+                                unsafe_allow_html=True,
+                            )
+                        with top2:
+                            if st.button("✕", key=f"del_{name}", help=f"Remover {name}"):
+                                del players[name]
+                                _persist()
+                                st.rerun()
+                        if has_pin:
+                            if st.button("🔓 Redefinir PIN", key=f"rst_{name}",
+                                         use_container_width=True):
+                                players[name]["pin_hash"] = None
+                                _persist()
+                                st.success(f"PIN de {name} redefinido.")
+                                st.rerun()
 
-        st.markdown("<div style='height:.5rem'></div>", unsafe_allow_html=True)
-        if st.button("🔓  Redefinir todos os PINs", use_container_width=True):
-            for n in players:
-                players[n]["pin_hash"] = None
+        st.markdown("<div style='height:.4rem'></div>", unsafe_allow_html=True)
+        if st.button("🔓  Redefinir TODOS os PINs", use_container_width=True):
+            for nm in players:
+                players[nm]["pin_hash"] = None
             _persist()
             st.success("Todos os PINs foram redefinidos.")
 
     st.markdown("---")
-    section_label("Adicionar Jogadora")
-    with st.form("add_player", clear_on_submit=True):
-        new_name = st.text_input("Nome", placeholder="Ex: Ana Paula")
-        if st.form_submit_button("➕  Adicionar", type="primary"):
-            n = new_name.strip()
-            if not n:
-                st.error("Nome não pode ser vazio.")
-            elif n.lower() in {x.lower() for x in players}:
-                st.error("Já existe uma jogadora com esse nome.")
-            else:
-                players[n] = {"pin_hash": None}
+    section_label("Adicionar Jogadoras")
+
+    tab_single, tab_bulk = st.tabs(["➕  Uma por vez", "📋  Importar lista"])
+
+    with tab_single:
+        with st.form("add_player", clear_on_submit=True):
+            new_name = st.text_input("Nome", placeholder="Ex: Ana Paula")
+            if st.form_submit_button("➕  Adicionar", type="primary"):
+                n = new_name.strip()
+                if not n:
+                    st.error("Nome não pode ser vazio.")
+                elif n.lower() in {x.lower() for x in players}:
+                    st.error("Já existe uma jogadora com esse nome.")
+                else:
+                    players[n] = {"pin_hash": None}
+                    _persist()
+                    st.success(f"✅ {n} adicionada!")
+                    st.rerun()
+
+    with tab_bulk:
+        st.caption("Cole vários nomes de uma vez — um por linha.")
+        bulk_raw = st.text_area(
+            "bulk",
+            placeholder="Ana Paula\nBia\nCarol\nDani\nFernanda",
+            height=130,
+            label_visibility="collapsed",
+            key="bulk_add",
+        )
+        if st.button("📋  Importar Lista", type="primary", use_container_width=True):
+            names = [x.strip() for x in bulk_raw.strip().splitlines() if x.strip()]
+            added, skipped = [], []
+            for nm in names:
+                if nm.lower() in {x.lower() for x in players}:
+                    skipped.append(nm)
+                else:
+                    players[nm] = {"pin_hash": None}
+                    added.append(nm)
+            if added:
                 _persist()
-                st.success(f"✅ {n} adicionada!")
+                st.success(f"✅ {len(added)} adicionada(s): {', '.join(added)}")
+            if skipped:
+                st.warning(f"⚠️ Já existiam (ignoradas): {', '.join(skipped)}")
+            if added:
                 st.rerun()
 
 
