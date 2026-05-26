@@ -433,54 +433,85 @@ def _create_tournament_ui():
     players_dict = st.session_state["data"].get("players", {})
     all_players = sorted(players_dict.keys())
 
+    # Guests session state
+    if "tourn_guests" not in st.session_state:
+        st.session_state["tourn_guests"] = []
+
     col_l, col_r = st.columns([3, 2], gap="large")
 
     selected_players: list = []
-    extra_raw = ""
 
     with col_l:
         section_label("👥  Jogadoras no Torneio")
 
-        if not all_players:
-            st.markdown(
-                '<div style="background:#fff7ed;border:2px dashed #f97316;'
-                'border-radius:14px;padding:1.4rem;text-align:center;'
-                'font-size:.88rem;color:#c2410c;line-height:1.8">'
-                '⚠️  Nenhuma jogadora cadastrada.<br>'
-                '<b>Vá até a aba Jogadoras para adicionar.</b></div>',
-                unsafe_allow_html=True,
-            )
+        # ── Checkboxes em grade ─────────────────
+        if all_players:
+            ncols = 3 if len(all_players) >= 6 else 2
+            grid = st.columns(ncols)
+            for i, name in enumerate(all_players):
+                with grid[i % ncols]:
+                    has_pin = bool(players_dict[name].get("pin_hash"))
+                    pin_icon = "🔒" if has_pin else "⚠️"
+                    checked = st.checkbox(
+                        f"{name}  {pin_icon}",
+                        value=True,
+                        key=f"chk_{name}",
+                    )
+                    if checked:
+                        selected_players.append(name)
         else:
-            selected_players = st.multiselect(
-                "Participantes",
-                options=all_players,
-                default=all_players,
-                placeholder="Escolha as participantes...",
-                label_visibility="collapsed",
-                key="tourn_players",
-            )
-
-            n = len(selected_players)
-            ok_color = "#f97316" if n >= 4 else "#dc2626"
             st.markdown(
-                f'<div style="display:flex;align-items:center;gap:.5rem;margin:.3rem 0 .5rem">'
-                f'<div style="background:{ok_color};color:white;border-radius:20px;'
-                f'padding:.15rem .75rem;font-weight:800;font-size:.83rem">{n}</div>'
-                f'<span style="font-size:.82rem;color:#92400e">'
-                f'jogadora{"s" if n != 1 else ""} selecionada{"s" if n != 1 else ""}</span>'
-                f'</div>',
+                '<div style="font-size:.84rem;color:#c49070;padding:.6rem 0">'
+                'Nenhuma jogadora cadastrada. Use a aba <b>Jogadoras</b> '
+                'ou adicione convidadas abaixo.</div>',
                 unsafe_allow_html=True,
             )
 
-        with st.expander("➕  Adicionar jogadora avulsa (visitante)"):
-            st.caption("Não precisa de cadastro — participará apenas deste torneio.")
-            extra_raw = st.text_area(
-                "extra",
-                placeholder="Uma por linha:\nEx: Visitante\nEx: Convidada",
-                height=90,
-                label_visibility="collapsed",
-                key="tourn_extra",
+        # ── Convidadas ──────────────────────────
+        st.markdown(
+            '<div style="font-size:.75rem;font-weight:700;letter-spacing:.06em;'
+            'color:#c49070;margin-top:.9rem;margin-bottom:.3rem">CONVIDADAS</div>',
+            unsafe_allow_html=True,
+        )
+        gi1, gi2 = st.columns([5, 1])
+        with gi1:
+            guest_in = st.text_input(
+                "g", placeholder="Nome da convidada...",
+                label_visibility="collapsed", key="guest_name_field",
             )
+        with gi2:
+            if st.button("➕", use_container_width=True, key="btn_add_guest"):
+                g = guest_in.strip()
+                existing = {x.lower() for x in all_players + st.session_state["tourn_guests"]}
+                if g and g.lower() not in existing:
+                    st.session_state["tourn_guests"].append(g)
+                    st.rerun()
+
+        for g in list(st.session_state["tourn_guests"]):
+            rc1, rc2 = st.columns([5, 1])
+            with rc1:
+                st.markdown(
+                    f'<div style="font-size:.85rem;color:#1a1a1a;'
+                    f'padding:.25rem 0">👤 {g}</div>',
+                    unsafe_allow_html=True,
+                )
+            with rc2:
+                if st.button("✕", key=f"rm_g_{g}"):
+                    st.session_state["tourn_guests"].remove(g)
+                    st.rerun()
+
+        # ── Contador ───────────────────────────
+        total_sel = len(selected_players) + len(st.session_state["tourn_guests"])
+        ok_color = "#f97316" if total_sel >= 2 else "#dc2626"
+        st.markdown(
+            f'<div style="display:flex;align-items:center;gap:.5rem;margin-top:.7rem">'
+            f'<div style="background:{ok_color};color:white;border-radius:20px;'
+            f'padding:.15rem .75rem;font-weight:800;font-size:.83rem">{total_sel}</div>'
+            f'<span style="font-size:.82rem;color:#92400e">'
+            f'participante{"s" if total_sel != 1 else ""} no torneio</span>'
+            f'</div>',
+            unsafe_allow_html=True,
+        )
 
     with col_r:
         section_label("🏆  Formato do Torneio")
@@ -510,8 +541,9 @@ def _create_tournament_ui():
     _, btn, _ = st.columns([2, 1, 2])
     with btn:
         if st.button("🏆  Criar Torneio", type="primary", use_container_width=True):
-            extra_players = [p.strip() for p in extra_raw.splitlines() if p.strip()]
-            _do_create(list(selected_players) + extra_players, fmt_name)
+            all_selected = list(selected_players) + list(st.session_state["tourn_guests"])
+            _do_create(all_selected, fmt_name)
+            st.session_state["tourn_guests"] = []
 
 
 def _do_create(players: list, fmt_name: str):
