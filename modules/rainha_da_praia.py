@@ -209,6 +209,35 @@ class RainhaDaPraia(BaseTournamentFormat):
             s["game_balance"] += r.game_balance_b
             if r.winner == "B": s["wins"] += 1
 
+    def _unapply(self, team_a, team_b, r: MatchResult):
+        """Reverse a previously applied match result (for score correction)."""
+        for p in team_a:
+            s = self.player_stats[p]
+            s["matches"] -= 1; s["points"] -= r.points_a
+            s["games_pro"] -= r.games_pro_a; s["games_against"] -= r.games_pro_b
+            s["game_balance"] -= r.game_balance_a
+            if r.winner == "A": s["wins"] -= 1
+
+        for p in team_b:
+            s = self.player_stats[p]
+            s["matches"] -= 1; s["points"] -= r.points_b
+            s["games_pro"] -= r.games_pro_b; s["games_against"] -= r.games_pro_a
+            s["game_balance"] -= r.game_balance_b
+            if r.winner == "B": s["wins"] -= 1
+
+    def uncomplete_round(self, idx: int):
+        """Reopen a completed round so results can be corrected."""
+        rnd = self.rounds[idx]
+        if not rnd["completed"]:
+            return
+        for m in rnd["matches"]:
+            if m["result"]:
+                self._unapply(m["team_a"], m["team_b"], m["result"])
+                m["result"] = None
+                m["score"] = None
+        rnd["completed"] = False
+        self.current_round_idx = idx
+
     # ── render ───────────────────────────────────
 
     def render(self, can_edit: bool = False) -> None:
@@ -247,14 +276,20 @@ class RainhaDaPraia(BaseTournamentFormat):
         if rnd["completed"]:
             round_done_banner()
             if can_edit:
-                c1, c2 = st.columns(2)
+                c1, c2, c3 = st.columns([2, 1.2, 1.2])
                 with c1:
                     if st.button("▶ Próxima Rodada", type="primary", use_container_width=True):
                         self.current_round_idx += 1
                         _save()
                         st.rerun()
                 with c2:
-                    if st.button("➕ Rodada Extra", use_container_width=True):
+                    if st.button("✏️ Corrigir", use_container_width=True,
+                                 help="Reabre a rodada para corrigir resultados"):
+                        self.uncomplete_round(idx)
+                        _save()
+                        st.rerun()
+                with c3:
+                    if st.button("➕ Extra", use_container_width=True):
                         self.add_round()
                         self.current_round_idx += 1
                         _save()

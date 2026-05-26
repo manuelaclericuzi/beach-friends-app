@@ -153,6 +153,32 @@ class DuplasFixas(BaseTournamentFormat):
         sb["game_balance"] += r.game_balance_b
         if r.winner == "B": sb["wins"] += 1
 
+    def _unapply(self, name_a: str, name_b: str, r: MatchResult):
+        """Reverse a previously applied result (for score correction)."""
+        sa, sb = self.team_stats[name_a], self.team_stats[name_b]
+        sa["matches"] -= 1; sa["points"] -= r.points_a
+        sa["games_pro"] -= r.games_pro_a; sa["games_against"] -= r.games_pro_b
+        sa["game_balance"] -= r.game_balance_a
+        if r.winner == "A": sa["wins"] -= 1
+
+        sb["matches"] -= 1; sb["points"] -= r.points_b
+        sb["games_pro"] -= r.games_pro_b; sb["games_against"] -= r.games_pro_a
+        sb["game_balance"] -= r.game_balance_b
+        if r.winner == "B": sb["wins"] -= 1
+
+    def uncomplete_round(self, idx: int):
+        """Reopen a completed round for correction."""
+        rnd = self.rounds[idx]
+        if not rnd["completed"]:
+            return
+        for m in rnd["matches"]:
+            if m["result"]:
+                self._unapply(m["team_a"], m["team_b"], m["result"])
+                m["result"] = None
+                m["score"] = None
+        rnd["completed"] = False
+        self.current_round_idx = idx
+
     # ── render ───────────────────────────────────
 
     def render(self, can_edit: bool = False) -> None:
@@ -236,10 +262,18 @@ class DuplasFixas(BaseTournamentFormat):
         if rnd["completed"]:
             round_done_banner()
             if can_edit:
-                if st.button("▶ Próxima Rodada", type="primary", use_container_width=True):
-                    self.current_round_idx += 1
-                    _save()
-                    st.rerun()
+                c1, c2 = st.columns([2, 1])
+                with c1:
+                    if st.button("▶ Próxima Rodada", type="primary", use_container_width=True):
+                        self.current_round_idx += 1
+                        _save()
+                        st.rerun()
+                with c2:
+                    if st.button("✏️ Corrigir", use_container_width=True,
+                                 help="Reabre a rodada para corrigir resultados"):
+                        self.uncomplete_round(idx)
+                        _save()
+                        st.rerun()
             return
 
         if not can_edit:
